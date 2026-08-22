@@ -1,0 +1,536 @@
+openapi: 3.1.0
+info:
+  title: GANJJ Order Service API
+  version: 1.0.0-draft
+  description: >-
+    Proposed public contract for the independently deployed GANJJ order
+    microservice. Prices and items are obtained server-to-server from Shopping
+    Cart; external clients never submit prices. The initial integration uses the
+    current Cart item snapshot, while versioned checkout quotes remain pending.
+servers:
+  - url: http://localhost:3004
+    description: Direct local container access
+  - url: http://localhost:3000
+    description: Local API Gateway
+tags:
+  - name: Pedidos
+  - name: Administração
+  - name: Health
+paths:
+  /api/pedidos:
+    post:
+      tags: [Pedidos]
+      summary: Criar pedido a partir do carrinho autenticado
+      operationId: criarPedido
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CriarPedidoRequest'
+            example:
+              endereco_entrega:
+                logradouro: Rua das Flores
+                numero: '123'
+                complemento: Apto 42
+                bairro: Centro
+                cidade: Curitiba
+                estado: PR
+                cep: 80000-000
+                pais: BR
+      responses:
+        '201':
+          description: Pedido criado
+          headers:
+            Location:
+              description: URL do pedido criado
+              schema:
+                type: string
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PedidoCriado'
+        '400':
+          $ref: '#/components/responses/ValidationProblem'
+        '401':
+          $ref: '#/components/responses/UnauthorizedProblem'
+        '409':
+          description: Carrinho/cotação/estoque/idempotência em conflito
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '422':
+          description: Cotação ou regra de negócio inválida
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailableProblem'
+
+  /api/pedidos/meus:
+    get:
+      tags: [Pedidos]
+      summary: Listar pedidos do cliente autenticado
+      operationId: listarMeusPedidos
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Pedidos em ordem decrescente de criação
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PedidoResumo'
+        '401':
+          $ref: '#/components/responses/UnauthorizedProblem'
+
+  /api/pedidos/{id}:
+    get:
+      tags: [Pedidos]
+      summary: Consultar um pedido
+      operationId: obterPedido
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Snapshot completo do pedido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PedidoDetalhado'
+        '401':
+          $ref: '#/components/responses/UnauthorizedProblem'
+        '403':
+          $ref: '#/components/responses/ForbiddenProblem'
+        '404':
+          $ref: '#/components/responses/NotFoundProblem'
+
+  /api/pedidos/admin/todos:
+    get:
+      tags: [Administração]
+      summary: Listar todos os pedidos
+      description: Requer papel de administrador.
+      operationId: listarTodosPedidos
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Todos os pedidos em ordem decrescente de criação
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PedidoAdminResumo'
+        '401':
+          $ref: '#/components/responses/UnauthorizedProblem'
+        '403':
+          $ref: '#/components/responses/ForbiddenProblem'
+
+  /api/pedidos/{id}/passo:
+    put:
+      tags: [Administração]
+      summary: Atualizar passo de rastreio
+      description: >-
+        Requer administrador. Passos 0-2 resultam em pending, 3-4 em
+        shipping e 5 em completed.
+      operationId: atualizarPassoPedido
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AtualizarPassoRequest'
+            example:
+              passo: 3
+      responses:
+        '200':
+          description: Passo atualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PassoAtualizado'
+        '400':
+          $ref: '#/components/responses/ValidationProblem'
+        '401':
+          $ref: '#/components/responses/UnauthorizedProblem'
+        '403':
+          $ref: '#/components/responses/ForbiddenProblem'
+        '404':
+          $ref: '#/components/responses/NotFoundProblem'
+        '409':
+          description: Conflito de atualização concorrente
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /health/live:
+    get:
+      tags: [Health]
+      summary: Liveness do processo
+      operationId: healthLive
+      security: []
+      responses:
+        '200':
+          description: Processo saudável
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /health/ready:
+    get:
+      tags: [Health]
+      summary: Readiness incluindo SQL Server
+      operationId: healthReady
+      security: []
+      responses:
+        '200':
+          description: Serviço pronto
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: Serviço não está pronto
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: accessToken
+
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Chave estável para impedir checkout duplicado.
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 100
+      example: 7bf75c1c-8277-4295-9061-ec2ea05b4baa
+    CorrelationId:
+      name: X-Correlation-ID
+      in: header
+      required: false
+      schema:
+        type: string
+        maxLength: 100
+    OrderId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  headers:
+    CorrelationId:
+      description: Identificador de correlação efetivo da requisição.
+      schema:
+        type: string
+
+  responses:
+    ValidationProblem:
+      description: Requisição inválida
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ValidationProblemDetails'
+    UnauthorizedProblem:
+      description: Token ausente, inválido ou expirado
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    ForbiddenProblem:
+      description: Identidade válida sem autorização para o recurso
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    NotFoundProblem:
+      description: Pedido não encontrado
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    DependencyUnavailableProblem:
+      description: Dependência necessária ao checkout indisponível
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+
+  schemas:
+    CriarPedidoRequest:
+      type: object
+      additionalProperties: false
+      required: [endereco_entrega]
+      properties:
+        endereco_entrega:
+          $ref: '#/components/schemas/EnderecoEntrega'
+
+    EnderecoEntrega:
+      type: object
+      additionalProperties: false
+      required: [logradouro, numero, bairro, cidade, estado, cep, pais]
+      properties:
+        logradouro:
+          type: string
+          minLength: 1
+          maxLength: 200
+        numero:
+          type: string
+          minLength: 1
+          maxLength: 30
+        complemento:
+          type: [string, 'null']
+          maxLength: 100
+        bairro:
+          type: string
+          minLength: 1
+          maxLength: 100
+        cidade:
+          type: string
+          minLength: 1
+          maxLength: 100
+        estado:
+          type: string
+          minLength: 2
+          maxLength: 50
+        cep:
+          type: string
+          minLength: 3
+          maxLength: 20
+        pais:
+          type: string
+          minLength: 2
+          maxLength: 2
+
+    PedidoCriado:
+      type: object
+      required: [id, codigo, status, passo_atual, total, moeda, criado_em]
+      properties:
+        id:
+          type: string
+          format: uuid
+        codigo:
+          type: string
+          example: '#GNJ-20260821-0001'
+        status:
+          $ref: '#/components/schemas/StatusPedido'
+        passo_atual:
+          type: integer
+          minimum: 0
+          maximum: 5
+        total:
+          type: number
+          multipleOf: 0.01
+        moeda:
+          type: string
+          const: BRL
+        criado_em:
+          type: string
+          format: date-time
+
+    PedidoResumo:
+      allOf:
+        - $ref: '#/components/schemas/PedidoCriado'
+        - type: object
+          required: [endereco_entrega, itens]
+          properties:
+            endereco_entrega:
+              $ref: '#/components/schemas/EnderecoEntrega'
+            numero_rastreio:
+              type: [string, 'null']
+            itens:
+              type: array
+              items:
+                $ref: '#/components/schemas/ItemPedido'
+
+    PedidoAdminResumo:
+      allOf:
+        - $ref: '#/components/schemas/PedidoResumo'
+        - type: object
+          required: [cliente_id]
+          properties:
+            cliente_id:
+              type: integer
+              format: int64
+            cliente_nome:
+              type: [string, 'null']
+            cliente_email:
+              type: [string, 'null']
+              format: email
+
+    PedidoDetalhado:
+      allOf:
+        - $ref: '#/components/schemas/PedidoAdminResumo'
+        - type: object
+          properties:
+            quote_id:
+              type: [string, 'null']
+              format: uuid
+              description: Present only after Cart implements checkout quotes.
+            cart_version:
+              type: [integer, 'null']
+              format: int64
+              description: Present only after Cart implements versioning.
+
+    ItemPedido:
+      type: object
+      required:
+        - produto_id
+        - nome
+        - quantidade
+        - preco_lista_unitario
+        - desconto_unitario
+        - preco_final_unitario
+        - total_linha
+      properties:
+        produto_id:
+          type: integer
+          format: int64
+        nome:
+          type: string
+        tamanho:
+          type: [string, 'null']
+        imagem_url:
+          type: [string, 'null']
+          format: uri
+        quantidade:
+          type: integer
+          minimum: 1
+        preco_lista_unitario:
+          type: number
+          multipleOf: 0.01
+        desconto_unitario:
+          type: number
+          minimum: 0
+          multipleOf: 0.01
+        preco_final_unitario:
+          type: number
+          minimum: 0
+          multipleOf: 0.01
+        total_linha:
+          type: number
+          minimum: 0
+          multipleOf: 0.01
+        promocao_id:
+          type: [string, 'null']
+        promocao_nome:
+          type: [string, 'null']
+
+    AtualizarPassoRequest:
+      type: object
+      additionalProperties: false
+      required: [passo]
+      properties:
+        passo:
+          type: integer
+          minimum: 0
+          maximum: 5
+
+    PassoAtualizado:
+      type: object
+      required: [id, passo_atual, status, atualizado_em]
+      properties:
+        id:
+          type: string
+          format: uuid
+        passo_atual:
+          type: integer
+          minimum: 0
+          maximum: 5
+        status:
+          $ref: '#/components/schemas/StatusPedido'
+        atualizado_em:
+          type: string
+          format: date-time
+
+    StatusPedido:
+      type: string
+      enum: [pending, shipping, completed, cancelled, failed]
+
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        checks:
+          type: object
+          additionalProperties:
+            type: string
+
+    ProblemDetails:
+      type: object
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+        traceId:
+          type: string
+      additionalProperties: true
+
+    ValidationProblemDetails:
+      allOf:
+        - $ref: '#/components/schemas/ProblemDetails'
+        - type: object
+          properties:
+            errors:
+              type: object
+              additionalProperties:
+                type: array
+                items:
+                  type: string

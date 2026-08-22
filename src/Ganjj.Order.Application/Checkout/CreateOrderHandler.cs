@@ -1,0 +1,206 @@
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
+using Ganjj.Order.Application.Abstractions;
+using Ganjj.Order.Domain.Orders;
+using OrderAggregate = Ganjj.Order.Domain.Orders.Order;
+
+namespace Ganjj.Order.Application.Checkout;
+
+public sealed class CreateOrderHandler(
+    IOrderRepository repository,
+    ICartClient cartClient,
+    IProductStockClient stockClient,
+    TimeProvider timeProvider,
+    IIdentifierGenerator identifiers)
+{
+    public async Task<CreateOrderResult> HandleAsync(
+        CreateOrderCommand command,
+        CancellationToken cancellationToken)
+    {
+        ValidateCommand(command);
+        var requestHash = ComputeRequestHash(command);
+        var existing = await repository.FindIdempotencyAsync(command.IdempotencyKey, cancellationToken);
+        if (existing is not null)
+        {
+            return await ResolveExistingAsync(existing, requestHash, command.CustomerId, cancellationToken);
+        }
+
+        var now = timeProvider.GetUtcNow();
+        var acquired = await repository.TryStartAsync(
+            command.IdempotencyKey, requestHash, command.CustomerId, now, cancellationToken);
+
+        if (!acquired)
+        {
+            existing = await repository.FindIdempotencyAsync(command.IdempotencyKey, cancellationToken);
+            if (existing is null)
+            {
+                throw new IdempotencyConflictException("The idempotency key could not be acquired.");
+            }
+
+            return await ResolveExistingAsync(existing, requestHash, command.CustomerId, cancellationToken);
+        }
+
+        var correlationId = string.IsNullOrWhiteSpace(command.CorrelationId)
+            ? command.IdempotencyKey
+            : command.CorrelationId;
+        var decremented = new List<DecrementedStock>();
+
+        try
+        {
+            var cart = await cartClient.GetCurrentAsync(
+                command.CustomerId, command.BearerToken, correlationId, cancellationToken);
+            ValidateCart(cart);
+
+            var orderId = identifiers.NewId();
+            var items = cart.Items.Select(item => OrderItem.Create(
+                identifiers.NewId(),
+                orderId,
+                item.ProductId,
+                item.ProductName,
+                item.Size,
+                item.ImageUrl,
+                item.Quantity,
+                item.UnitPrice,
+                0m,
+                null,
+                null)).ToList();
+
+            for (var index = 0; index < items.Count; index++)
+            {
+                var item = items[index];
+                var operationId = OperationId(command.IdempotencyKey, "decrement", item.ProductId, index);
+                await stockClient.DecrementAsync(
+                    item.ProductId, item.Quantity, operationId, correlationId, cancellationToken);
+                decremented.Add(new DecrementedStock(item.ProductId, item.Quantity, operationId, index));
+            }
+
+            var order = OrderAggregate.Create(
+                orderId,
+                command.CustomerId,
+                command.CustomerName,
+                command.CustomerEmail,
+                command.DeliveryAddress,
+                items,
+                now);
+
+            await repository.SaveAndCompleteAsync(order, command.IdempotencyKey, cancellationToken);
+            return CreateOrderResult.From(order);
+        }
+        catch (Exception checkoutFailure)
+        {
+            Exception? compensationFailure = null;
+            foreach (var stock in decremented.AsEnumerable().Reverse())
+            {
+                try
+                {
+                    var compensationId = OperationId(
+                        command.IdempotencyKey, "restore", stock.ProductId, stock.Index);
+                    await stockClient.RestoreAsync(
+                        stock.ProductId,
+                        stock.Quantity,
+                        compensationId,
+                        stock.OperationId,
+                        correlationId,
+                        CancellationToken.None);
+                }
+                catch (Exception error)
+                {
+                    compensationFailure ??= error;
+                }
+            }
+
+            if (compensationFailure is not null)
+            {
+                throw new CompensationFailedException(checkoutFailure, compensationFailure);
+            }
+
+            await repository.RemoveIdempotencyAsync(command.IdempotencyKey, CancellationToken.None);
+            throw;
+        }
+    }
+
+    public static string ComputeRequestHash(CreateOrderCommand command)
+    {
+        var address = command.DeliveryAddress;
+        var canonical = string.Join('|',
+            command.CustomerId.ToString(CultureInfo.InvariantCulture),
+            address.Street,
+            address.Number,
+            address.Complement ?? string.Empty,
+            address.District,
+            address.City,
+            address.State,
+            address.PostalCode,
+            address.Country);
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)));
+    }
+
+    private async Task<CreateOrderResult> ResolveExistingAsync(
+        IdempotencySnapshot existing,
+        string requestHash,
+        long customerId,
+        CancellationToken cancellationToken)
+    {
+        if (!string.Equals(existing.RequestHash, requestHash, StringComparison.Ordinal) ||
+            existing.CustomerId != customerId)
+        {
+            throw new IdempotencyConflictException(
+                "The idempotency key was already used with a different request.");
+        }
+
+        if (existing.Status != IdempotencyStatus.Completed || existing.OrderId is null)
+        {
+            throw new IdempotencyConflictException("The original request is still in progress.");
+        }
+
+        var order = await repository.GetByIdAsync(existing.OrderId.Value, cancellationToken);
+        if (order is null)
+        {
+            throw new IdempotencyConflictException("The completed idempotent result could not be loaded.");
+        }
+
+        return CreateOrderResult.From(order);
+    }
+
+    private static void ValidateCommand(CreateOrderCommand command)
+    {
+        if (command.CustomerId <= 0)
+        {
+            throw new DomainValidationException("CustomerId must be positive.");
+        }
+
+        if (string.IsNullOrWhiteSpace(command.BearerToken))
+        {
+            throw new DomainValidationException("Bearer token is required for the current Cart contract.");
+        }
+
+        if (string.IsNullOrWhiteSpace(command.IdempotencyKey) || command.IdempotencyKey.Length is < 8 or > 100)
+        {
+            throw new DomainValidationException("IdempotencyKey must contain between 8 and 100 characters.");
+        }
+    }
+
+    private static void ValidateCart(CartSnapshot cart)
+    {
+        ArgumentNullException.ThrowIfNull(cart);
+        if (cart.Items.Count == 0)
+        {
+            throw new CartEmptyException();
+        }
+
+        if (cart.Items.Any(item => item.ProductId <= 0 || item.Quantity <= 0 || item.UnitPrice < 0 ||
+                                   string.IsNullOrWhiteSpace(item.ProductName)))
+        {
+            throw new InvalidDependencyContractException("Cart", "an item snapshot is malformed");
+        }
+    }
+
+    private static string OperationId(string key, string action, long productId, int index)
+    {
+        var input = $"{key}:{action}:{productId}:{index}";
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(input)))[..32];
+    }
+
+    private sealed record DecrementedStock(long ProductId, int Quantity, string OperationId, int Index);
+}

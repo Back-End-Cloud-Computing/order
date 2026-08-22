@@ -1,0 +1,38 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${SQL_SERVER_PASSWORD:-Ganjj_Local_2026!}
+    ports:
+      - "14330:1433"
+    volumes:
+      - order-sql-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  order-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__OrderDatabase: Server=sqlserver,1433;Database=GanjjOrder;User Id=sa;Password=${SQL_SERVER_PASSWORD:-Ganjj_Local_2026!};TrustServerCertificate=True
+      Authentication__Jwt__SigningKey: ${JWT_SIGNING_KEY:-ganjj-compose-signing-key-change-me-2026}
+      Services__Cart__BaseUrl: ${CART_SERVICE_URL:-http://host.docker.internal:3003}
+      Services__Product__BaseUrl: ${PRODUCT_SERVICE_URL:-http://host.docker.internal:3002}
+      Services__Internal__Secret: ${INTERNAL_SERVICE_SECRET:-ganjj-compose-internal-secret-change-me}
+      Database__ApplyMigrations: "true"
+      ApiDocs__Enabled: "true"
+    ports:
+      - "3004:8080"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+
+volumes:
+  order-sql-data:

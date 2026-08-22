@@ -1,0 +1,7 @@
+**/bin/
+**/obj/
+.git/
+.idea/
+.env
+Dockerfile*
+README.md

@@ -1,0 +1,19 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet restore Ganjj.Order.sln
+      - run: dotnet build Ganjj.Order.sln --configuration Release --no-restore
+      - run: dotnet test Ganjj.Order.sln --configuration Release --no-build --verbosity normal
+      - run: docker build --tag ganjj-order:${{ github.sha }} .
