@@ -1,17 +1,28 @@
 using System.Net;
+using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace Ganjj.Order.Api.IntegrationTests;
 
-public sealed class ApiFoundationTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class ApiFoundationTests : IDisposable
 {
+    private readonly WebApplicationFactory<Program> _factory;
     private readonly HttpClient _client;
+    private readonly string _publicKeyPath = Path.Combine(Path.GetTempPath(), $"ganjj-order-{Guid.NewGuid():N}.pem");
 
-    public ApiFoundationTests(WebApplicationFactory<Program> factory)
+    public ApiFoundationTests()
     {
-        _client = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Development"))
+        using var rsa = RSA.Create(2048);
+        File.WriteAllText(_publicKeyPath, rsa.ExportSubjectPublicKeyInfoPem());
+        _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Development");
+            builder.UseSetting("Authentication:Jwt:PublicKeyPath", _publicKeyPath);
+            builder.UseSetting("Authentication:Jwt:Issuer", "ganjj-authorization");
+        });
+        _client = _factory
             .CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
     }
 
@@ -50,5 +61,12 @@ public sealed class ApiFoundationTests : IClassFixture<WebApplicationFactory<Pro
         var response = await _client.GetAsync("/api/pedidos/meus");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    public void Dispose()
+    {
+        _client.Dispose();
+        _factory.Dispose();
+        if (File.Exists(_publicKeyPath)) File.Delete(_publicKeyPath);
     }
 }

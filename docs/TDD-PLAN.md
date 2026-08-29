@@ -2,7 +2,7 @@
 
 Status: Draft for review  
 Method: Test-Driven Development (Red-Green-Refactor)  
-Last updated: 2026-08-22
+Last updated: 2026-08-29
 
 ## 1. Purpose
 
@@ -185,12 +185,31 @@ Tests:
 - invalid delivery address returns validation problem;
 - customer ID from JSON is ignored/rejected;
 - price/item fields are not part of the accepted request contract;
-- customer identity comes from token claims.
-- `id` supplies customer identity and `isAdmin == true` satisfies the Admin policy.
+- customer identity comes from token claims;
+- a valid RS256 access token with issuer `ganjj-authorization` authenticates;
+- `sub` supplies a non-empty UUID account identity;
+- `role == ADMIN` satisfies the Admin policy and `CLIENTE` does not;
+- expired, tampered, wrong-issuer, and non-RS256 tokens return 401;
+- a correctly signed refresh token with `typ == refresh` still returns 401;
+- absent or malformed `sub` and absent `typ` return 401;
+- a missing or invalid public-key file prevents unsafe startup.
 
 Production outcome:
 
 - API request model, controller boundary, and authentication setup.
+
+Migration test sequence for the approved Authorization-contract change:
+
+1. **Red:** replace legacy fixtures with an RSA key pair and provider-shaped
+   tokens; observe failures caused by shared-key validation, `id`, and `isAdmin`.
+2. **Green:** introduce only the RS256/public-key validation and new claim mapping
+   required to pass the authentication tests.
+3. **Red:** introduce UUID ownership, idempotency, response, and SQL mapping tests;
+   observe failures while `CustomerId` is still numeric.
+4. **Green:** change `CustomerId` to `Guid` through every layer and update the SQL
+   schema to `uniqueidentifier`.
+5. **Refactor:** centralize claim constants/token builders, remove legacy paths,
+   and keep all existing checkout tests green.
 
 ### Cycle 4 - Successful checkout orchestration
 
@@ -276,7 +295,8 @@ Tests:
 - results are newest first;
 - customer can read their own order;
 - customer cannot read another customer's order;
-- admin can read any order;
+- comparison uses the exact UUID from JWT `sub`;
+- `role == ADMIN` can read any order;
 - missing order returns 404;
 - snapshots are returned without live Product/Customer calls.
 
@@ -341,7 +361,9 @@ Tests:
 - future quote/consume examples are tested only after group approval;
 - Product decrement success/error examples match;
 - Product restore operation accepts stable operation ID;
-- agreed JWT example authenticates with `id` and `isAdmin` claims.
+- Authorization-shaped RS256 access-token fixtures authenticate with `sub`,
+  `role`, `typ`, `iss`, and `exp`;
+- the public key exposed by Authorization verifies the provider smoke token.
 
 Production outcome:
 

@@ -19,7 +19,7 @@ internal sealed class OrderRepository(OrderDbContext dbContext) : IOrderReposito
     public async Task<bool> TryStartAsync(
         string key,
         string requestHash,
-        long customerId,
+        Guid customerId,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
@@ -76,7 +76,7 @@ internal sealed class OrderRepository(OrderDbContext dbContext) : IOrderReposito
             .SingleOrDefaultAsync(order => order.Id == id, cancellationToken);
 
     public async Task<IReadOnlyList<OrderAggregate>> ListForCustomerAsync(
-        long customerId,
+        Guid customerId,
         CancellationToken cancellationToken) =>
         await dbContext.Orders.AsNoTracking().Include(order => order.Items)
             .Where(order => order.CustomerId == customerId)

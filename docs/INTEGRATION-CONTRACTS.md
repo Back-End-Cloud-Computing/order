@@ -1,7 +1,7 @@
 # Integration Contracts - GANJJ Order Service
 
 Status: Partially accepted - open items are tracked in `INTEGRATION-ISSUES.md`  
-Last updated: 2026-08-22
+Last updated: 2026-08-29
 
 ## 1. Purpose
 
@@ -23,35 +23,37 @@ language-specific libraries.
 
 ## 3. Authentication/JWT contract
 
-### Accepted initial claims
+### Accepted provider claims
 
-Order initially follows the original GANJJ contract because Auth owns token
-issuance and the current Shopping Cart already consumes `id`. Claim names are
-case-sensitive.
+The Authorization repository is now the provider source of truth. Claim names
+and values are case-sensitive.
 
 ```json
 {
-  "id": 42,
+  "iss": "ganjj-authorization",
+  "sub": "d3f1a2b4-0000-4000-8000-000000000001",
   "email": "rodrigo@example.com",
-  "isAdmin": false,
+  "role": "CLIENTE",
+  "typ": "access",
   "iat": 1787280000,
   "exp": 1787280900
 }
 ```
 
-Administrator example changes `isAdmin` to `true`.
+Administrator tokens use `role: ADMIN`.
 
 ### Initial validation rule
 
-Order derives customer identity only from `id` and maps `isAdmin == true` to the
-ASP.NET Core `Admin` authorization policy. The original implementation signs the
-token with the shared `JWT_SECRET`, adds expiration, and does not emit explicit
-issuer or audience claims. Order initially validates signature and expiration;
-issuer/audience validation can be enabled only after Auth starts emitting them.
+Order derives account identity only from UUID `sub`
+and maps `role == ADMIN` to its Admin policy. It validates the token locally with
+the Authorization public key, fixes the accepted algorithm to RS256, requires
+issuer `ganjj-authorization`, checks lifetime, and requires `typ == access`.
+Audience is not validated because the provider does not emit `aud`.
 
-The group must still publish one signed example token and freeze the signing
-algorithm/secret handling before real integration tests. Any future migration to
-standard `sub`/`role` claims is a separate group decision.
+The public key is available from `GET /auth/public-key` and is supplied to Order
+as a configured PEM file. Order never receives the private key and does not call
+Authorization for each request. A real provider smoke token is still required
+before final integration acceptance.
 
 ## 4. Cart checkout quote
 
@@ -119,7 +121,7 @@ Successful response:
 ```json
 {
   "quote_id": "2ee6757e-ab27-42df-bf60-738c848ff252",
-  "customer_id": 42,
+  "customer_id": "d3f1a2b4-0000-4000-8000-000000000001",
   "cart_version": 8,
   "created_at": "2026-08-21T03:00:00Z",
   "expires_at": "2026-08-21T03:05:00Z",
@@ -303,7 +305,7 @@ require a transport for this event:
   "occurred_at": "2026-08-21T03:00:01Z",
   "order_id": "adc8aacb-51a2-40d1-a8c0-e7ef5464f8aa",
   "order_code": "#GNJ-20260821-0001",
-  "customer_id": 42,
+  "customer_id": "d3f1a2b4-0000-4000-8000-000000000001",
   "customer_email": "rodrigo@example.com",
   "total": 80.00,
   "currency": "BRL",
@@ -319,7 +321,9 @@ Transport, topic/queue, consumer, and personal-data policy remain pending.
 - [ ] Promotion rules are represented in the quote snapshot.
 - [ ] Cart version and consume semantics are agreed.
 - [ ] Product agrees with decrement/restore paths and operation idempotency.
-- [ ] JWT issuer, audience, algorithm, and claim names are frozen.
+- [x] JWT issuer, algorithm, and claim names are implemented by Authorization.
+- [x] Order accepts the Authorization contract through ADR 0006 and local consumer tests.
+- [x] A real provider access token passes the cross-service smoke test and its refresh token is rejected.
 - [ ] Gateway header forwarding is verified.
 - [ ] Success and each named error have JSON examples.
 - [ ] Order consumer contract tests pass against provider examples.

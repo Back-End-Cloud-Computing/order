@@ -3,7 +3,7 @@ using Ganjj.Order.Domain.Orders;
 namespace Ganjj.Order.Application.Checkout;
 
 public sealed record CreateOrderCommand(
-    long CustomerId,
+    Guid CustomerId,
     string? CustomerName,
     string? CustomerEmail,
     string BearerToken,

@@ -43,8 +43,8 @@ namespace Ganjj.Order.Infrastructure.Persistence.Migrations
                         .HasMaxLength(320)
                         .HasColumnType("nvarchar(320)");
 
-                    b.Property<long>("CustomerId")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("CustomerName")
                         .HasMaxLength(200)
@@ -172,8 +172,8 @@ namespace Ganjj.Order.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
-                    b.Property<long>("CustomerId")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid?>("OrderId")
                         .HasColumnType("uniqueidentifier");

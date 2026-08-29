@@ -5,7 +5,7 @@ namespace Ganjj.Order.Application.Abstractions;
 public interface ICartClient
 {
     Task<CartSnapshot> GetCurrentAsync(
-        long customerId,
+        Guid customerId,
         string bearerToken,
         string correlationId,
         CancellationToken cancellationToken);

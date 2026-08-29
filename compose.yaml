@@ -22,7 +22,8 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ConnectionStrings__OrderDatabase: Server=sqlserver,1433;Database=GanjjOrder;User Id=sa;Password=${SQL_SERVER_PASSWORD:-Ganjj_Local_2026!};TrustServerCertificate=True
-      Authentication__Jwt__SigningKey: ${JWT_SIGNING_KEY:-ganjj-compose-signing-key-change-me-2026}
+      Authentication__Jwt__PublicKeyPath: /app/keys/public.pem
+      Authentication__Jwt__Issuer: ${JWT_ISSUER:-ganjj-authorization}
       Services__Cart__BaseUrl: ${CART_SERVICE_URL:-http://host.docker.internal:3003}
       Services__Product__BaseUrl: ${PRODUCT_SERVICE_URL:-http://host.docker.internal:3002}
       Services__Internal__Secret: ${INTERNAL_SERVICE_SECRET:-ganjj-compose-internal-secret-change-me}
@@ -30,6 +31,8 @@ services:
       ApiDocs__Enabled: "true"
     ports:
       - "3004:8080"
+    volumes:
+      - ${JWT_PUBLIC_KEY_PATH:-./public.pem}:/app/keys/public.pem:ro
     depends_on:
       sqlserver:
         condition: service_healthy

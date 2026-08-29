@@ -10,7 +10,7 @@ public sealed class Order
 
     public Guid Id { get; private set; }
     public string Code { get; private set; } = string.Empty;
-    public long CustomerId { get; private set; }
+    public Guid CustomerId { get; private set; }
     public string? CustomerName { get; private set; }
     public string? CustomerEmail { get; private set; }
     public Guid? QuoteId { get; private set; }
@@ -27,7 +27,7 @@ public sealed class Order
 
     public static Order Create(
         Guid id,
-        long customerId,
+        Guid customerId,
         string? customerName,
         string? customerEmail,
         DeliveryAddress deliveryAddress,
@@ -41,9 +41,9 @@ public sealed class Order
             throw new DomainValidationException("Order Id is required.");
         }
 
-        if (customerId <= 0)
+        if (customerId == Guid.Empty)
         {
-            throw new DomainValidationException("CustomerId must be positive.");
+            throw new DomainValidationException("CustomerId is required.");
         }
 
         ArgumentNullException.ThrowIfNull(deliveryAddress);

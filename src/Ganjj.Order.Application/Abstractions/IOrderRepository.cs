@@ -13,7 +13,7 @@ public enum IdempotencyStatus
 public sealed record IdempotencySnapshot(
     string Key,
     string RequestHash,
-    long CustomerId,
+    Guid CustomerId,
     IdempotencyStatus Status,
     Guid? OrderId);
 
@@ -24,7 +24,7 @@ public interface IOrderRepository
     Task<bool> TryStartAsync(
         string key,
         string requestHash,
-        long customerId,
+        Guid customerId,
         DateTimeOffset now,
         CancellationToken cancellationToken);
 
@@ -37,7 +37,7 @@ public interface IOrderRepository
 
     Task<OrderAggregate?> GetByIdAsync(Guid id, CancellationToken cancellationToken);
 
-    Task<IReadOnlyList<OrderAggregate>> ListForCustomerAsync(long customerId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<OrderAggregate>> ListForCustomerAsync(Guid customerId, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<OrderAggregate>> ListAllAsync(CancellationToken cancellationToken);
 

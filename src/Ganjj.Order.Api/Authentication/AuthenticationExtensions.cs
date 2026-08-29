@@ -1,4 +1,4 @@
-using System.Text;
+using System.Security.Cryptography;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 
@@ -14,11 +14,35 @@ public static class AuthenticationExtensions
     {
         var jwt = configuration.GetSection(JwtAuthenticationOptions.SectionName)
             .Get<JwtAuthenticationOptions>() ?? new JwtAuthenticationOptions();
-        if (Encoding.UTF8.GetByteCount(jwt.SigningKey) < 32)
+        if (string.IsNullOrWhiteSpace(jwt.PublicKeyPath))
         {
             throw new InvalidOperationException(
-                $"{JwtAuthenticationOptions.SectionName}:SigningKey must contain at least 32 bytes.");
+                $"{JwtAuthenticationOptions.SectionName}:PublicKeyPath is required.");
         }
+        if (string.IsNullOrWhiteSpace(jwt.Issuer))
+        {
+            throw new InvalidOperationException($"{JwtAuthenticationOptions.SectionName}:Issuer is required.");
+        }
+
+        var publicKeyPath = Path.IsPathRooted(jwt.PublicKeyPath)
+            ? jwt.PublicKeyPath
+            : Path.Combine(AppContext.BaseDirectory, jwt.PublicKeyPath);
+        if (!File.Exists(publicKeyPath))
+        {
+            throw new InvalidOperationException($"JWT public key file was not found at '{publicKeyPath}'.");
+        }
+
+        using var rsa = RSA.Create();
+        try
+        {
+            rsa.ImportFromPem(File.ReadAllText(publicKeyPath));
+        }
+        catch (Exception exception) when (exception is ArgumentException or CryptographicException)
+        {
+            throw new InvalidOperationException("The configured JWT public key is not a valid PEM RSA key.", exception);
+        }
+
+        var signingKey = new RsaSecurityKey(rsa.ExportParameters(false));
 
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
@@ -27,23 +51,26 @@ public static class AuthenticationExtensions
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
                     ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SigningKey)),
+                    IssuerSigningKey = signingKey,
+                    ValidAlgorithms = [SecurityAlgorithms.RsaSha256],
                     ValidateLifetime = true,
                     ClockSkew = TimeSpan.FromSeconds(30),
-                    ValidateIssuer = !string.IsNullOrWhiteSpace(jwt.Issuer),
+                    ValidateIssuer = true,
                     ValidIssuer = jwt.Issuer,
-                    ValidateAudience = !string.IsNullOrWhiteSpace(jwt.Audience),
-                    ValidAudience = jwt.Audience,
-                    NameClaimType = "id"
+                    ValidateAudience = false,
+                    NameClaimType = "email",
+                    RoleClaimType = "role"
                 };
                 options.Events = new JwtBearerEvents
                 {
-                    OnMessageReceived = context =>
+                    OnTokenValidated = context =>
                     {
-                        if (string.IsNullOrWhiteSpace(context.Token) &&
-                            context.Request.Cookies.TryGetValue("accessToken", out var cookieToken))
+                        var type = context.Principal?.FindFirst("typ")?.Value;
+                        var subject = context.Principal?.FindFirst("sub")?.Value;
+                        if (!string.Equals(type, "access", StringComparison.Ordinal) ||
+                            !Guid.TryParse(subject, out var accountId) || accountId == Guid.Empty)
                         {
-                            context.Token = cookieToken;
+                            context.Fail("The token must be an access token with a valid account id in sub.");
                         }
 
                         return Task.CompletedTask;
@@ -52,10 +79,7 @@ public static class AuthenticationExtensions
             });
 
         services.AddAuthorization(options =>
-            options.AddPolicy(AdminPolicy, policy => policy.RequireAssertion(context =>
-                context.User.Claims.Any(claim =>
-                    claim.Type == "isAdmin" &&
-                    string.Equals(claim.Value, "true", StringComparison.OrdinalIgnoreCase)))));
+            options.AddPolicy(AdminPolicy, policy => policy.RequireClaim("role", "ADMIN")));
 
         return services;
     }

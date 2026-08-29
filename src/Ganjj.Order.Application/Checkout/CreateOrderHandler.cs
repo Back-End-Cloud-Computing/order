@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using Ganjj.Order.Application.Abstractions;
@@ -124,7 +123,7 @@ public sealed class CreateOrderHandler(
     {
         var address = command.DeliveryAddress;
         var canonical = string.Join('|',
-            command.CustomerId.ToString(CultureInfo.InvariantCulture),
+            command.CustomerId.ToString("D"),
             address.Street,
             address.Number,
             address.Complement ?? string.Empty,
@@ -139,7 +138,7 @@ public sealed class CreateOrderHandler(
     private async Task<CreateOrderResult> ResolveExistingAsync(
         IdempotencySnapshot existing,
         string requestHash,
-        long customerId,
+        Guid customerId,
         CancellationToken cancellationToken)
     {
         if (!string.Equals(existing.RequestHash, requestHash, StringComparison.Ordinal) ||
@@ -165,9 +164,9 @@ public sealed class CreateOrderHandler(
 
     private static void ValidateCommand(CreateOrderCommand command)
     {
-        if (command.CustomerId <= 0)
+        if (command.CustomerId == Guid.Empty)
         {
-            throw new DomainValidationException("CustomerId must be positive.");
+            throw new DomainValidationException("CustomerId is required.");
         }
 
         if (string.IsNullOrWhiteSpace(command.BearerToken))

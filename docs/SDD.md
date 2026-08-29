@@ -3,7 +3,7 @@
 Status: Draft for technical review  
 Target runtime: .NET 10 / ASP.NET Core  
 Database: Microsoft SQL Server  
-Last updated: 2026-08-22
+Last updated: 2026-08-29
 
 ## 1. Architecture objectives
 
@@ -48,7 +48,7 @@ the academic demonstration.
 | HTTP API | ASP.NET Core Controllers | Clear validation, authorization, and OpenAPI behavior |
 | Persistence | Entity Framework Core with SQL Server provider | Migrations, transactions, and provider support |
 | Database | SQL Server 2022 for local container | Stable course/demo baseline and compatible with managed AWS options |
-| Authentication | ASP.NET Core JWT Bearer with `id` and `isAdmin` claims | Compatible with the original GANJJ token contract |
+| Authentication | ASP.NET Core JWT Bearer with RS256, `sub`, `role`, and `typ` | Matches the implemented Authorization service contract in ADR 0006 |
 | API description | Built-in ASP.NET Core OpenAPI + Scalar | Generated contract plus interactive API visualization |
 | Errors | Problem Details | Consistent machine-readable API errors |
 | HTTP dependencies | Typed `HttpClient` clients | Dependency injection, timeout, and resilience policies |
@@ -229,7 +229,7 @@ On a failure before SQL commit:
 | --- | --- | --- |
 | `Id` | `Guid` | Public durable identifier |
 | `Code` | string | Human-readable `#GNJ-...` code, unique |
-| `CustomerId` | long | External snapshot identifier, no database FK |
+| `CustomerId` | `Guid` | Authorization account UUID from `sub`, no database FK |
 | `CustomerName` | string? | Optional snapshot when supplied by trusted token/service |
 | `CustomerEmail` | string? | Optional snapshot for display/notification |
 | `QuoteId` | `Guid?` | Reserved for the future Cart quote contract |
@@ -282,7 +282,7 @@ erDiagram
     Orders {
         uniqueidentifier Id PK
         nvarchar Code UK
-        bigint CustomerId
+        uniqueidentifier CustomerId
         uniqueidentifier QuoteId UK
         bigint CartVersion
         nvarchar Status
@@ -400,18 +400,21 @@ No distributed database transaction or shared schema is introduced.
 ## 13. Authentication and authorization
 
 - Accept `Authorization: Bearer <token>` as the primary mechanism.
-- Cookie `accessToken` compatibility may be retained for the original GANJJ flow.
-- Validate signature and expiration locally using the Auth signing configuration.
-- Read the stable customer identifier from the case-sensitive `id` claim.
-- Map `isAdmin == true` to an `Admin` authorization policy.
-- Do not require issuer/audience until Auth emits and freezes those claims.
+- Validate signature locally with the Authorization public RSA key and accept
+  only the RS256 algorithm.
+- Require issuer `ganjj-authorization`, expiration, and `typ == access`.
+- Read the stable account identifier from the case-sensitive `sub` claim and
+  parse it as a non-empty UUID.
+- Map `role == ADMIN` to the `Admin` authorization policy.
+- Do not require audience while Authorization does not emit `aud`.
 - The create request never accepts `customerId` or `isAdmin` from JSON.
 - Detail queries enforce owner-or-admin authorization after loading the order.
 - Health endpoints are anonymous and disclose no credentials.
 - Internal service credentials are read from secret-backed configuration.
 
-The `id`/`isAdmin` shape is accepted for the initial implementation. A real
-signed example and signing configuration are still required for integration.
+This change is accepted in ADR 0006. The public key is supplied as a
+mounted/configured PEM file; Order does not call
+Authorization during ordinary request validation.
 
 ## 14. Error contract
 
@@ -548,9 +551,8 @@ Proposed environment variable names:
 | `ASPNETCORE_ENVIRONMENT` | Yes | Runtime environment |
 | `ASPNETCORE_HTTP_PORTS` | No | Container port, default 8080 |
 | `ConnectionStrings__OrderDatabase` | Yes | SQL Server connection |
-| `Authentication__Issuer` | No initially | Enable only after Auth emits `iss` |
-| `Authentication__Audience` | No initially | Enable only after Auth emits `aud` |
-| `Authentication__SigningKey` | Yes for shared-key mode | JWT validation key |
+| `Authentication__Jwt__Issuer` | Yes | Expected issuer, `ganjj-authorization` |
+| `Authentication__Jwt__PublicKeyPath` | Yes | Mounted Authorization public-key PEM file |
 | `Services__Cart__BaseUrl` | Yes | Cart URL |
 | `Services__Product__BaseUrl` | Yes | Product URL |
 | `Services__InternalSecret` | Yes initially | Internal HTTP authentication |
@@ -584,6 +586,7 @@ Detailed decisions and their consequences are recorded under `docs/adr`:
 - Saga, idempotency, and outbox behavior;
 - container/registry portability;
 - deferred support-microservice decision.
+- adopted Authorization RS256 contract (ADR 0006).
 
 ## 22. Technical acceptance checklist
 
@@ -592,6 +595,8 @@ Detailed decisions and their consequences are recorded under `docs/adr`:
 - [ ] SQL transaction covers order, items, and idempotency completion.
 - [ ] Stock compensation tests cover partial and database failures.
 - [ ] Owner/admin authorization tests pass.
+- [ ] Only RS256 access tokens with the expected issuer and a valid UUID `sub` authenticate.
+- [ ] Refresh tokens and non-admin roles are rejected by the corresponding policies.
 - [ ] OpenAPI contract matches runtime behavior.
 - [ ] Scalar renders the generated OpenAPI document in the demo environment.
 - [ ] API and SQL Server run in separate containers.

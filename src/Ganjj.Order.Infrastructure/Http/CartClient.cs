@@ -10,7 +10,7 @@ namespace Ganjj.Order.Infrastructure.Http;
 internal sealed class CartClient(HttpClient httpClient) : ICartClient
 {
     public async Task<CartSnapshot> GetCurrentAsync(
-        long customerId,
+        Guid customerId,
         string bearerToken,
         string correlationId,
         CancellationToken cancellationToken)

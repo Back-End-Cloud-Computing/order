@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Security.Claims;
 using Ganjj.Order.Api.Authentication;
 using Ganjj.Order.Api.Contracts;
@@ -82,19 +81,19 @@ public sealed class OrdersController(
         return Ok(order.ToResponse());
     }
 
-    private long CustomerId()
+    private Guid CustomerId()
     {
-        var raw = User.FindFirstValue("id");
-        if (!long.TryParse(raw, NumberStyles.None, CultureInfo.InvariantCulture, out var id) || id <= 0)
+        var raw = User.FindFirstValue("sub");
+        if (!Guid.TryParse(raw, out var id) || id == Guid.Empty)
         {
-            throw new DomainValidationException("The token must contain a positive numeric id claim.");
+            throw new DomainValidationException("The token must contain a valid account id in the sub claim.");
         }
 
         return id;
     }
 
     private bool IsAdmin() => string.Equals(
-        User.FindFirstValue("isAdmin"), "true", StringComparison.OrdinalIgnoreCase);
+        User.FindFirstValue("role"), "ADMIN", StringComparison.Ordinal);
 
     private string BearerToken()
     {
@@ -103,11 +102,6 @@ public sealed class OrdersController(
         if (authorization?.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) is true)
         {
             return authorization[prefix.Length..].Trim();
-        }
-
-        if (Request.Cookies.TryGetValue("accessToken", out var token) && !string.IsNullOrWhiteSpace(token))
-        {
-            return token;
         }
 
         throw new DomainValidationException("A bearer token is required for the current Cart integration.");

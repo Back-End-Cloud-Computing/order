@@ -17,7 +17,7 @@ namespace Ganjj.Order.Infrastructure.Persistence.Migrations
                 {
                     Key = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     RequestHash = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
-                    CustomerId = table.Column<long>(type: "bigint", nullable: false),
+                    CustomerId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     Status = table.Column<string>(type: "nvarchar(30)", maxLength: 30, nullable: false),
                     OrderId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     CreatedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
@@ -34,7 +34,7 @@ namespace Ganjj.Order.Infrastructure.Persistence.Migrations
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     Code = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
-                    CustomerId = table.Column<long>(type: "bigint", nullable: false),
+                    CustomerId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     CustomerName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
                     CustomerEmail = table.Column<string>(type: "nvarchar(320)", maxLength: 320, nullable: true),
                     QuoteId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),

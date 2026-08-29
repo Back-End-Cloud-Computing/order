@@ -19,6 +19,9 @@ reserva estoque no serviço de produtos e mantém um snapshot imutável dos iten
 
 Pré-requisito: Docker Desktop em execução.
 
+Exporte a chave pública do Authorization para `public.pem` na raiz do projeto
+antes de iniciar o Order. A chave privada nunca deve ser copiada.
+
 ```powershell
 Copy-Item .env.example .env
 docker compose up --build
@@ -38,8 +41,10 @@ dotnet run --project src/Ganjj.Order.Api
 ```
 
 O teste de persistência usa Testcontainers e, portanto, também requer Docker.
-Para criar pedidos, envie um JWT assinado com a chave configurada contendo as
-claims legadas `id`, `email` e `isAdmin`, além do header `Idempotency-Key`.
+Para execução local, configure `Authentication__Jwt__PublicKeyPath` com o caminho
+absoluto do arquivo PEM. Para criar pedidos, envie um JWT contendo as
+claims `sub`, `email`, `role` e `typ` do Authorization, além do header
+`Idempotency-Key`. A assinatura RS256 é validada localmente com a chave pública.
 
 ## Estado
 

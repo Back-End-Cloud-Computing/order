@@ -6,12 +6,13 @@ namespace Ganjj.Order.Domain.UnitTests;
 public sealed class OrderTests
 {
     private static readonly DateTimeOffset Now = new(2026, 8, 22, 12, 0, 0, TimeSpan.Zero);
+    private static readonly Guid CustomerId = Guid.Parse("11111111-1111-1111-1111-111111111111");
 
     [Fact]
     public void Create_WhenItemsAreEmpty_ShouldRejectOrder()
     {
         var exception = Assert.Throws<DomainValidationException>(() =>
-            OrderAggregate.Create(Guid.NewGuid(), 42, null, "customer@example.com", Address(), [], Now));
+            OrderAggregate.Create(Guid.NewGuid(), CustomerId, null, "customer@example.com", Address(), [], Now));
 
         Assert.Contains("item", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
@@ -22,7 +23,7 @@ public sealed class OrderTests
         var orderId = Guid.NewGuid();
         var order = OrderAggregate.Create(
             orderId,
-            42,
+            CustomerId,
             null,
             "customer@example.com",
             Address(),
@@ -45,7 +46,7 @@ public sealed class OrderTests
     {
         var orderId = Guid.NewGuid();
         var order = OrderAggregate.Create(
-            orderId, 42, null, null, Address(), [Item(orderId, 1, 10m)], Now);
+            orderId, CustomerId, null, null, Address(), [Item(orderId, 1, 10m)], Now);
 
         order.UpdateTracking(step, step >= 3 ? "BR123" : null, Now.AddMinutes(1));
 
@@ -60,7 +61,7 @@ public sealed class OrderTests
     {
         var orderId = Guid.NewGuid();
         var order = OrderAggregate.Create(
-            orderId, 42, null, null, Address(), [Item(orderId, 1, 10m)], Now);
+            orderId, CustomerId, null, null, Address(), [Item(orderId, 1, 10m)], Now);
 
         Assert.Throws<DomainValidationException>(() => order.UpdateTracking(step, null, Now));
     }

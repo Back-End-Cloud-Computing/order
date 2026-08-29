@@ -8,13 +8,16 @@ namespace Ganjj.Order.Application.UnitTests;
 public sealed class CreateOrderHandlerTests
 {
     private static readonly DateTimeOffset Now = new(2026, 8, 22, 12, 0, 0, TimeSpan.Zero);
+    private static readonly Guid CustomerId = Guid.Parse("11111111-1111-1111-1111-111111111111");
 
     [Fact]
     public async Task Handle_WhenCartIsValid_ShouldPersistSnapshotAfterStockDecrements()
     {
         var repository = new FakeOrderRepository();
         var stock = new FakeStockClient();
-        var handler = Handler(repository, stock, Cart(Item(12, 2, 50m), Item(34, 1, 25m)));
+        var cart = new FakeCartClient(Cart(Item(12, 2, 50m), Item(34, 1, 25m)));
+        var handler = new CreateOrderHandler(
+            repository, cart, stock, new FixedTimeProvider(Now), new SequenceIds());
 
         var result = await handler.HandleAsync(Command(), CancellationToken.None);
 
@@ -23,6 +26,7 @@ public sealed class CreateOrderHandlerTests
         Assert.NotNull(repository.SavedOrder);
         Assert.Equal(2, repository.SavedOrder.Items.Count);
         Assert.Equal(IdempotencyStatus.Completed, repository.Entry?.Status);
+        Assert.Equal("token", cart.BearerToken);
     }
 
     [Fact]
@@ -80,7 +84,7 @@ public sealed class CreateOrderHandlerTests
         new(repository, new FakeCartClient(cart), stock, new FixedTimeProvider(Now), new SequenceIds());
 
     private static CreateOrderCommand Command() => new(
-        42,
+        CustomerId,
         null,
         "customer@example.com",
         "token",
@@ -95,7 +99,7 @@ public sealed class CreateOrderHandlerTests
     private static OrderAggregate ExistingOrder(Guid id)
     {
         var item = OrderItem.Create(Guid.NewGuid(), id, 12, "Product 12", null, null, 1, 10m, 0m, null, null);
-        return OrderAggregate.Create(id, 42, null, "customer@example.com",
+        return OrderAggregate.Create(id, CustomerId, null, "customer@example.com",
             new DeliveryAddress("Rua A", "1", null, "Centro", "Curitiba", "PR", "80000-000", "BR"),
             [item], Now);
     }
@@ -103,11 +107,13 @@ public sealed class CreateOrderHandlerTests
     private sealed class FakeCartClient(CartSnapshot result) : ICartClient
     {
         public int Calls { get; private set; }
+        public string? BearerToken { get; private set; }
 
-        public Task<CartSnapshot> GetCurrentAsync(long customerId, string bearerToken, string correlationId,
+        public Task<CartSnapshot> GetCurrentAsync(Guid customerId, string bearerToken, string correlationId,
             CancellationToken cancellationToken)
         {
             Calls++;
+            BearerToken = bearerToken;
             return Task.FromResult(result);
         }
     }
@@ -149,7 +155,7 @@ public sealed class CreateOrderHandlerTests
         public Task<IdempotencySnapshot?> FindIdempotencyAsync(string key, CancellationToken cancellationToken) =>
             Task.FromResult(Entry);
 
-        public Task<bool> TryStartAsync(string key, string requestHash, long customerId,
+        public Task<bool> TryStartAsync(string key, string requestHash, Guid customerId,
             DateTimeOffset now, CancellationToken cancellationToken)
         {
             if (Entry is not null) return Task.FromResult(false);
@@ -176,7 +182,7 @@ public sealed class CreateOrderHandlerTests
             Task.FromResult(_completedOrder?.Id == id ? _completedOrder : null);
 
         public Task<IReadOnlyList<OrderAggregate>> ListForCustomerAsync(
-            long customerId, CancellationToken cancellationToken) =>
+            Guid customerId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<OrderAggregate>>(
                 _completedOrder?.CustomerId == customerId ? [_completedOrder] : []);
 

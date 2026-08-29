@@ -29,9 +29,10 @@ public sealed class SqlServerPersistenceTests : IAsyncLifetime
     public async Task OrderAggregate_WhenPersisted_ShouldRestoreItemsAddressAndVersion()
     {
         var orderId = Guid.NewGuid();
+        var customerId = Guid.NewGuid();
         var order = OrderAggregate.Create(
             orderId,
-            42,
+            customerId,
             "Customer",
             "customer@ganjj.test",
             new DeliveryAddress("Cloud Street", "10", null, "Center", "Curitiba", "PR", "80000-000", "BR"),
@@ -47,7 +48,7 @@ public sealed class SqlServerPersistenceTests : IAsyncLifetime
         await using var readContext = new OrderDbContext(_options);
         var persisted = await readContext.Orders.Include(value => value.Items).SingleAsync();
 
-        Assert.Equal(42, persisted.CustomerId);
+        Assert.Equal(customerId, persisted.CustomerId);
         Assert.Equal("Curitiba", persisted.DeliveryAddress.City);
         Assert.Equal(59.80m, persisted.Total);
         Assert.Single(persisted.Items);

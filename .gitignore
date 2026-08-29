@@ -38,6 +38,9 @@ ScaffoldingReadMe.txt
 
 # dotenv environment variables file
 .env
+private.pem
+public.pem
+keys/private.pem
 
 # Others
 ~$*

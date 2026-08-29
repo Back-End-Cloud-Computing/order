@@ -6,7 +6,7 @@ namespace Ganjj.Order.Application.Orders;
 
 public sealed class OrderManagementService(IOrderRepository repository, TimeProvider timeProvider)
 {
-    public Task<IReadOnlyList<OrderAggregate>> ListMineAsync(long customerId, CancellationToken cancellationToken) =>
+    public Task<IReadOnlyList<OrderAggregate>> ListMineAsync(Guid customerId, CancellationToken cancellationToken) =>
         repository.ListForCustomerAsync(customerId, cancellationToken);
 
     public Task<IReadOnlyList<OrderAggregate>> ListAllAsync(CancellationToken cancellationToken) =>
@@ -14,7 +14,7 @@ public sealed class OrderManagementService(IOrderRepository repository, TimeProv
 
     public async Task<OrderAggregate> GetAsync(
         Guid orderId,
-        long customerId,
+        Guid customerId,
         bool isAdmin,
         CancellationToken cancellationToken)
     {

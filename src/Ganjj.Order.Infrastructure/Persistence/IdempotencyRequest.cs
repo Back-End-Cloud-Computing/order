@@ -6,7 +6,7 @@ internal sealed class IdempotencyRequest
 {
     public string Key { get; set; } = string.Empty;
     public string RequestHash { get; set; } = string.Empty;
-    public long CustomerId { get; set; }
+    public Guid CustomerId { get; set; }
     public IdempotencyStatus Status { get; set; }
     public Guid? OrderId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }

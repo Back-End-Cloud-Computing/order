@@ -396,8 +396,8 @@ components:
           required: [cliente_id]
           properties:
             cliente_id:
-              type: integer
-              format: int64
+              type: string
+              format: uuid
             cliente_nome:
               type: [string, 'null']
             cliente_email:

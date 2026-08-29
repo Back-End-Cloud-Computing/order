@@ -1,7 +1,7 @@
 # Pendências de integração entre os microsserviços GANJJ
 
 Status: Em discussão pelo grupo  
-Última atualização: 2026-08-22  
+Última atualização: 2026-08-29
 Idioma: Português (PT-BR)
 
 ## 1. Objetivo
@@ -16,7 +16,7 @@ resolvida.
 
 | ID | Tema | Serviços afetados | Situação | Bloqueia agora? |
 | --- | --- | --- | --- | --- |
-| INT-001 | Contrato JWT | Auth, Gateway e todos os serviços | Decisão provisória | Não |
+| INT-001 | Contrato JWT | Auth, Gateway e todos os serviços | Resolvido no Authorization e Order | Não |
 | INT-002 | Cotação final do carrinho | Cart, Product, Promotion e Order | Pendente | Não para desenvolvimento; sim para integração final |
 | INT-003 | Limpeza segura do carrinho | Cart e Order | Pendente | Não |
 | INT-004 | Operações idempotentes de estoque | Product e Order | Pendente | Não para stubs; sim para retries seguros |
@@ -29,22 +29,26 @@ resolvida.
 
 ### INT-001 — Contrato JWT
 
-**Situação atual:** o projeto original emite as claims `id`, `email` e
-`isAdmin`. O Cart atual utiliza `id`; os endpoints administrativos originais
-utilizam `isAdmin`.
+**Situação atual:** o serviço Authorization implementou RS256, emissor
+`ganjj-authorization`, UUID em `sub`, `role` (`CLIENTE`/`ADMIN`), `typ` e Bearer
+token. A chave pública é publicada por `GET /auth/public-key`. O Order ainda usa
+o contrato legado `id`/`isAdmin` e segredo simétrico.
 
-**Decisão provisória do Order:** consumir `id` e `isAdmin`, mantendo
-compatibilidade com o projeto original. O Order não exigirá que o responsável
-pelo Auth migre agora para `sub` e `role`.
+**Decisão do Order:** adotar o contrato implementado pelo Authorization conforme
+ADR 0006, trocar `CustomerId` para UUID e remover a aceitação do contrato legado.
+A implementação e os testes locais foram concluídos.
 
-**Ainda precisa ser combinado:**
+**Validado em smoke cross-service:**
 
-- algoritmo de assinatura;
-- forma segura de distribuir o segredo ou chave;
-- exemplo real de token assinado;
-- duração do access token;
-- uso futuro de `issuer` e `audience`;
-- autenticação por cookie, Bearer token ou ambos através do Gateway.
+- chave pública real do Authorization validada pelo Order;
+- access token real aceito nas rotas de cliente e administrador;
+- UUID de `sub` aceito na consulta ao SQL Server;
+- refresh token real recusado com 401.
+
+**Ainda precisa ser confirmado para o ambiente final:**
+
+- montagem/distribuição do arquivo PEM nos containers e na AWS;
+- encaminhamento do header `Authorization` pelo Gateway e aceitação pelo Cart.
 
 **Responsável pela decisão:** Eduardo (Auth/Cliente), com validação do grupo.
 
@@ -152,8 +156,8 @@ de dados pessoais.
 
 ## 4. Checklist para a reunião do grupo
 
-- [ ] Confirmar o contrato inicial do JWT (`id`, `email`, `isAdmin`).
-- [ ] Compartilhar um token de exemplo sem usar segredo de produção.
+- [x] Aprovar o ADR 0006 e o contrato JWT (`sub`, `email`, `role`, `typ`).
+- [ ] Compartilhar um access token de teste sem expor chave privada.
 - [ ] Decidir quem calcula o preço final e as promoções no checkout.
 - [ ] Decidir se o Cart terá cotação e versionamento.
 - [ ] Aprovar as operações de decremento/restauração de estoque.

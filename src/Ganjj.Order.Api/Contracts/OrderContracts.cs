@@ -31,7 +31,7 @@ public sealed record CreateOrderResponse(
 public sealed record OrderResponse(
     [property: JsonPropertyName("id")] Guid Id,
     [property: JsonPropertyName("codigo")] string Code,
-    [property: JsonPropertyName("cliente_id")] long CustomerId,
+    [property: JsonPropertyName("cliente_id")] Guid CustomerId,
     [property: JsonPropertyName("cliente_nome")] string? CustomerName,
     [property: JsonPropertyName("cliente_email")] string? CustomerEmail,
     [property: JsonPropertyName("status")] string Status,
