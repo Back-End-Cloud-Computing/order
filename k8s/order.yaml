@@ -1,0 +1,111 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order
+  labels:
+    app.kubernetes.io/name: order
+    app.kubernetes.io/part-of: ganjj
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: order
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: order
+        app.kubernetes.io/part-of: ganjj
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: order
+          image: ganjj-order:local
+          imagePullPolicy: Never
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: Production
+            - name: ConnectionStrings__OrderDatabase
+              valueFrom:
+                secretKeyRef:
+                  name: order-secrets
+                  key: connection-string
+            - name: Authentication__Jwt__PublicKeyPath
+              value: /app/keys/public.pem
+            - name: Authentication__Jwt__Issuer
+              value: ganjj-authorization
+            - name: Services__Cart__BaseUrl
+              value: http://shopping-cart:3003
+            - name: Services__Product__BaseUrl
+              value: http://product:8000
+            - name: Services__Internal__Secret
+              valueFrom:
+                secretKeyRef:
+                  name: order-secrets
+                  key: internal-secret
+            - name: Database__ApplyMigrations
+              value: "true"
+            - name: ApiDocs__Enabled
+              value: "true"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          startupProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          volumeMounts:
+            - name: jwt-public-key
+              mountPath: /app/keys
+              readOnly: true
+      volumes:
+        - name: jwt-public-key
+          configMap:
+            name: order-jwt-public-key
+            items:
+              - key: public.pem
+                path: public.pem
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: order
+  labels:
+    app.kubernetes.io/name: order
+    app.kubernetes.io/part-of: ganjj
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: order
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

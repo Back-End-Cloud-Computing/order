@@ -15,6 +15,58 @@ reserva estoque no serviço de produtos e mantém um snapshot imutável dos iten
 - [Plano de entrega](docs/DELIVERY-PLAN.md) - backlog e ordem de implementação.
 - [ADRs](docs/adr/) - decisões arquiteturais registradas.
 
+## Executar com Kubernetes local
+
+Pré-requisitos: Docker Desktop com containers Linux, Minikube, `kubectl` e a
+chave pública RS256 do Authorization em `public.pem` (raiz do projeto). A chave
+privada não deve ser copiada. Reserve pelo menos 4 CPUs, 6 GiB para o Minikube
+e espaço para o volume de 8 GiB do SQL Server.
+
+```powershell
+# Opcional: defina INTERNAL_SERVICE_SECRET com o valor combinado pelo grupo.
+.\scripts\Start-Kubernetes.ps1
+```
+
+O script inicia o cluster local se necessário, cria um Secret com senha forte
+gerada localmente (ou usa `SQL_SERVER_PASSWORD`), monta a chave pública como
+ConfigMap, constrói/carrega a imagem e espera o SQL Server e as três réplicas
+do Order ficarem prontos. Ao rodar novamente, ele preserva a senha do banco
+persistente; `INTERNAL_SERVICE_SECRET` pode ser alterado para combinar com o
+grupo. Nenhum valor secreto é versionado no Git. Se o cluster estiver pronto e
+a imagem já tiver sido construída, use `-SkipBuild`.
+
+```powershell
+kubectl -n default get pods,deployments,statefulsets,services -l app.kubernetes.io/part-of=ganjj
+kubectl -n default port-forward service/order 3004:8080
+```
+
+Em outro terminal, acesse `http://localhost:3004/scalar/v1`,
+`http://localhost:3004/health/ready` e `http://localhost:3004/instance`.
+O endpoint `/instance` identifica o Pod que atendeu a requisição.
+
+Para demonstrar o DNS interno e a autorrecuperação:
+
+```powershell
+kubectl -n default run order-dns-check --image=curlimages/curl:8.11.1 --restart=Never --rm -i -- curl -fsS http://order:8080/health/ready
+kubectl -n default run order-replica-check --image=curlimages/curl:8.11.1 --restart=Never --rm -i -- sh -c 'for i in 1 2 3 4 5 6 7 8 9 10; do curl -fsS http://order:8080/instance; echo; done'
+$pod = kubectl -n default get pods -l app.kubernetes.io/name=order -o jsonpath='{.items[0].metadata.name}'
+kubectl -n default delete pod $pod
+kubectl -n default rollout status deployment/order
+kubectl -n default get pods -l app.kubernetes.io/name=order
+```
+
+As chamadas a `/instance` criam conexões independentes e podem mostrar Pods
+diferentes; o Service não garante um round-robin rígido. O `port-forward` é
+apenas uma entrada temporária e não serve para demonstrar distribuição entre
+réplicas.
+
+`order` e `order-sqlserver` são Services internos (`ClusterIP`) no namespace
+`default`. As URLs de Cart e Product no manifesto pressupõem Services
+`shopping-cart:3003` e `product:8000` nesse mesmo namespace; sem esses serviços,
+health/Scalar funcionam, mas o checkout integrado não. Esta implantação é
+exclusivamente local, sem AWS. O volume do SQL Server é persistente; não apague
+o PVC para reiniciar a apresentação.
+
 ## Executar com Docker
 
 Pré-requisito: Docker Desktop em execução.
@@ -49,4 +101,5 @@ claims `sub`, `email`, `role` e `typ` do Authorization, além do header
 ## Estado
 
 `Em implementação` - fundação, domínio, persistência, API, autenticação,
-integrações HTTP, migrations, Docker e testes automatizados disponíveis.
+integrações HTTP, migrations, Docker, Kubernetes local e testes automatizados
+disponíveis; integração de checkout depende dos contratos dos demais serviços.

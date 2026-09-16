@@ -37,6 +37,16 @@ public sealed class ApiFoundationTests : IDisposable
     }
 
     [Fact]
+    public async Task Instance_WhenApiIsRunning_ShouldIdentifyTheServingProcess()
+    {
+        var response = await _client.GetAsync("/instance");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.False(string.IsNullOrWhiteSpace(document.RootElement.GetProperty("pod").GetString()));
+    }
+
+    [Fact]
     public async Task OpenApi_WhenDevelopment_ShouldExposeVersionOneDocument()
     {
         var response = await _client.GetAsync("/openapi/v1.json");

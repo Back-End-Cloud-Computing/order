@@ -1,7 +1,7 @@
 # Delivery Plan - GANJJ Order Service
 
 Status: Proposed  
-Last updated: 2026-08-21
+Last updated: 2026-09-16
 
 ## 1. Delivery policy
 
@@ -130,19 +130,17 @@ Demo aligned with professor's material:
 6. tag and push image;
 7. pull/run on another environment.
 
-### M7 - AWS/cloud integration
+### M7 - Local Kubernetes demonstration
 
-Blocked until the group selects ECS, EKS, or EC2.
+AWS publication was removed from scope by the course deployment constraint.
+Scope:
 
-Common scope regardless of runtime:
-
-- registry mapping to Docker Hub/ECR;
-- secret injection;
-- central logs;
-- health-based deployment;
-- database connectivity and persistence;
-- smoke test through public gateway/load balancer;
-- teardown/cost-control instructions.
+- Minikube cluster on Docker Desktop;
+- versioned Deployment/Service YAML with three Order replicas;
+- one SQL Server StatefulSet with persistent storage and Service DNS;
+- Kubernetes Secret for credentials and ConfigMap for the JWT public key;
+- liveness/readiness/startup probes and local port-forward;
+- internal DNS, replica identity, and Pod recovery demonstration.
 
 ### M8 - Final hardening and presentation
 
@@ -173,7 +171,7 @@ Scope:
 | 12 | Dockerfile/Compose/health | API + migration | Container smoke tests |
 | 13 | Real cross-service checkout | Provider implementations | End-to-end evidence |
 | 14 | Registry publication | Docker image | Pull/run proof |
-| 15 | AWS runtime deployment | Group runtime decision | Public smoke test/logs |
+| 15 | Local Kubernetes deployment | Docker image and Minikube | Three replicas, DNS, Pod recovery |
 
 ## 4. Cross-team action list
 
@@ -207,7 +205,7 @@ Scope:
 ### Group
 
 - select support microservice;
-- select final AWS runtime and registry;
+- agree shared local Kubernetes namespace, service names, and gateway routing;
 - define gateway ownership/routing;
 - agree shared correlation/internal-auth conventions.
 
@@ -218,7 +216,7 @@ Scope:
   otherwise follow the group's agreed naming convention.
 - One TDD behavior or cohesive cycle per change set where practical.
 - Pull requests include tests and contract/document changes.
-- Never commit `.env`, passwords, JWT secrets, or AWS credentials.
+- Never commit `.env`, passwords, JWT private keys, or Kubernetes Secrets.
 - Version releases with semantic tags such as `v1.0.0` and matching image tags.
 
 ## 6. Definition of ready for implementation
@@ -243,7 +241,7 @@ Scope:
 - [ ] Configuration comes from environment variables.
 - [ ] Versioned image is published and pullable.
 - [ ] Health/log evidence is available.
-- [ ] AWS deployment matches final group decision.
+- [ ] Local Kubernetes deployment passes the three-replica, DNS, and recovery demo.
 - [ ] Support-microservice decision is reflected at group architecture level.
 
 ## 8. Professor-rubric traceability
@@ -254,7 +252,7 @@ Scope:
 | Distinct domain languages | Order shown as C# alongside team services |
 | Distinct databases | Order owns SQL Server; no shared schema |
 | Support microservice | Explicit group decision remains tracked |
-| Cloud techniques | containers, network, env config, health, registry, AWS path |
+| Cloud techniques | containers, network, externalized config, health, Kubernetes orchestration |
 | Docker artifact flow | source -> publish artifact -> image -> container -> registry |
 | Microservice integration | Current Cart snapshot + Product stock Saga |
 | Portability | same image/config model locally and in cloud |
@@ -263,8 +261,8 @@ Scope:
 ## 9. Known non-blocking decisions
 
 - Support microservice type/owner.
-- AWS compute/orchestrator.
-- Docker Hub versus ECR for final image publication.
+- Whether Docker Hub publication is additionally required for the final demo.
+- Final group gateway/Ingress approach for local Kubernetes.
 - Optional event broker/`OrderCreated` consumer.
 
 These decisions must close before M7/M8, not before M1-M4.

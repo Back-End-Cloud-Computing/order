@@ -227,6 +227,20 @@ paths:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
 
+  /instance:
+    get:
+      tags: [Diagnostics]
+      summary: Identifica o Pod que atendeu a requisição
+      operationId: getInstance
+      security: []
+      responses:
+        '200':
+          description: Instância identificada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstanceResponse'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -504,6 +518,13 @@ components:
           type: object
           additionalProperties:
             type: string
+
+    InstanceResponse:
+      type: object
+      required: [pod]
+      properties:
+        pod:
+          type: string
 
     ProblemDetails:
       type: object

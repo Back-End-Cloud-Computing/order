@@ -1,7 +1,7 @@
 # Pendências de integração entre os microsserviços GANJJ
 
 Status: Em discussão pelo grupo  
-Última atualização: 2026-08-29
+Última atualização: 2026-09-16
 Idioma: Português (PT-BR)
 
 ## 1. Objetivo
@@ -47,7 +47,8 @@ A implementação e os testes locais foram concluídos.
 
 **Ainda precisa ser confirmado para o ambiente final:**
 
-- montagem/distribuição do arquivo PEM nos containers e na AWS;
+- distribuição da chave pública PEM entre os Pods no Kubernetes local (o Order
+  já a monta em um ConfigMap próprio; os demais serviços precisam confirmar);
 - encaminhamento do header `Authorization` pelo Gateway e aceitação pelo Cart.
 
 **Responsável pela decisão:** Eduardo (Auth/Cliente), com validação do grupo.
@@ -126,7 +127,7 @@ internamente, mas não deve alterar o tipo publicado no contrato.
 rotas internas.
 
 **Decisão necessária:** definir quem gera o segredo, como ele chega aos
-containers/AWS e quais endpoints exigem esse header. Segredos não devem ser
+Pods via Kubernetes Secrets e quais endpoints exigem esse header. Segredos não devem ser
 gravados no GitHub ou em imagens Docker.
 
 **Responsável:** todo o grupo.

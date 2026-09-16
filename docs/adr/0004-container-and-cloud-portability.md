@@ -1,7 +1,10 @@
 # ADR 0004 - Build a portable, versioned container before choosing AWS runtime
 
-Status: Accepted  
+Status: Superseded for deployment by ADR 0007
 Date: 2026-08-21
+
+The original AWS/runtime deferral below records the decision at that time. The
+current course deployment target is local Kubernetes; see ADR 0007.
 
 ## Context
 
@@ -21,4 +24,3 @@ and Kubernetes manifests are deferred until the group/course confirms runtime.
 - Compose supports local demonstration of network and environment concepts.
 - Health endpoints and graceful termination are required now.
 - Deployment-specific manifests remain a later deliverable.
-

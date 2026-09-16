@@ -56,6 +56,13 @@ app.MapGet("/health/ready", async (OrderDbContext dbContext, CancellationToken c
     .AllowAnonymous()
     .WithName("ReadyHealth")
     .WithTags("Health");
+app.MapGet("/instance", () => Results.Ok(new
+    {
+        pod = Environment.GetEnvironmentVariable("HOSTNAME") ?? Environment.MachineName
+    }))
+    .AllowAnonymous()
+    .WithName("GetInstance")
+    .WithTags("Diagnostics");
 
 app.Run();
 

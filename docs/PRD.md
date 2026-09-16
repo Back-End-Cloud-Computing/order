@@ -3,7 +3,7 @@
 Status: Draft for group review  
 Owner: Rodrigo Alves  
 Repository: `Back-End-Cloud-Computing/order`  
-Last updated: 2026-08-22
+Last updated: 2026-09-16
 
 ## 1. Purpose
 
@@ -111,6 +111,8 @@ The service is successful when the team can demonstrate that:
 - Liveness and readiness health endpoints.
 - Structured logs and correlation identifiers.
 - Docker image, local multi-container execution, and registry-ready versioning.
+- Local Kubernetes deployment with three Order replicas, internal Service DNS,
+  persistent SQL Server storage, and Pod recovery demonstration.
 - TDD workflow and automated tests.
 
 ### Out of scope
@@ -123,8 +125,7 @@ The service is successful when the team can demonstrate that:
 - Migrating old PostgreSQL order data.
 - Sharing SQL Server tables with another service.
 - Selecting or implementing the group support microservice.
-- Final production-grade AWS topology until the course/group confirms ECS, EKS,
-  or EC2.
+- AWS publication and production-grade cloud infrastructure.
 
 ## 7. Core user journeys
 
@@ -250,7 +251,7 @@ from the client request because checkout data must be obtained from Cart.
 | Product operations are not idempotent | Retries may duplicate stock changes | Require operation IDs and disable blind POST retries |
 | Compensation fails | Stock and order state diverge | Structured alert, persisted recovery record, manual/retry procedure |
 | JWT claims differ among languages | Authentication breaks at integration | Freeze a shared token example and contract test |
-| AWS target changes | Deployment rework | Keep container and configuration vendor-neutral |
+| Local Kubernetes lacks memory or disk | Pods fail to schedule or SQL Server cannot start | Reserve cluster resources and verify the PVC before the presentation |
 | Support microservice remains undecided | Group rubric remains incomplete | Track as group-level decision; do not block Order core |
 
 ## 14. Acceptance criteria
@@ -271,8 +272,7 @@ The PRD is accepted when the group agrees that:
 These do not block documentation or the initial Order domain implementation:
 
 1. Which support microservice will satisfy the rubric.
-2. Whether the final AWS runtime is ECS, EKS, or EC2.
-3. Whether the image registry used in the final presentation is Docker Hub, ECR,
-   or both.
+2. Final local Kubernetes namespace and Gateway/Ingress routing shared by the group.
+3. Whether Docker Hub publication is additionally required for the final presentation.
 4. The final JWT issuer, audience, claim names, and key distribution method.
 5. The final Product stock-reservation contract.

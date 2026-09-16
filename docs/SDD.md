@@ -3,7 +3,7 @@
 Status: Draft for technical review  
 Target runtime: .NET 10 / ASP.NET Core  
 Database: Microsoft SQL Server  
-Last updated: 2026-08-29
+Last updated: 2026-09-16
 
 ## 1. Architecture objectives
 
@@ -18,7 +18,7 @@ of cloud-native practices:
 - reproducible and versioned images;
 - failure handling across service boundaries;
 - automated tests written with TDD;
-- portability from local Docker to a future AWS/Kubernetes runtime.
+- a reproducible local Kubernetes deployment without AWS publication.
 
 The design intentionally avoids production-scale complexity that does not improve
 the academic demonstration.
@@ -36,9 +36,9 @@ the academic demonstration.
    observable; errors are not swallowed.
 6. **Idempotency precedes retries.** Unsafe operations are retried only when their
    contract supplies an operation identifier.
-7. **The container is stateless.** Persistent state belongs to SQL Server.
-8. **Configuration is environment-specific.** The image is identical in local,
-   test, and cloud environments.
+7. **The API container is stateless.** Persistent state belongs to SQL Server.
+8. **Configuration is environment-specific.** The same image can run under
+   Compose or local Kubernetes.
 
 ## 3. Technology choices
 
@@ -47,7 +47,7 @@ the academic demonstration.
 | Runtime | .NET 10 LTS | Current LTS installed in the development environment |
 | HTTP API | ASP.NET Core Controllers | Clear validation, authorization, and OpenAPI behavior |
 | Persistence | Entity Framework Core with SQL Server provider | Migrations, transactions, and provider support |
-| Database | SQL Server 2022 for local container | Stable course/demo baseline and compatible with managed AWS options |
+| Database | SQL Server 2022 in a local persistent container | Stable course/demo baseline |
 | Authentication | ASP.NET Core JWT Bearer with RS256, `sub`, `role`, and `typ` | Matches the implemented Authorization service contract in ADR 0006 |
 | API description | Built-in ASP.NET Core OpenAPI + Scalar | Generated contract plus interactive API visualization |
 | Errors | Problem Details | Consistent machine-readable API errors |
@@ -55,7 +55,7 @@ the academic demonstration.
 | DTO mapping | Manual mappings and EF Core `Select` projections | Keeps domain/snapshot decisions explicit and avoids an unnecessary mapper dependency |
 | Tests | xUnit test projects and container-backed integration tests | Supports Red-Green-Refactor and real SQL semantics |
 | Packaging | Multi-stage Docker image | Small runtime image and reproducible build |
-| Local orchestration | Docker Compose | Automates the network/container steps taught in class |
+| Local orchestration | Docker Compose and Minikube | Compose supports development; Kubernetes demonstrates Deployments, Services, DNS, and recovery |
 
 Exact NuGet patch versions will be pinned when implementation starts. The design
 does not depend on preview packages.
@@ -158,6 +158,7 @@ manually. Read-only EF Core queries should project directly to response DTOs wit
 | PUT | `/api/pedidos/{id}/passo` | Admin | Update tracking step |
 | GET | `/health/live` | Anonymous | Process liveness |
 | GET | `/health/ready` | Anonymous | SQL Server readiness |
+| GET | `/instance` | Anonymous | Identify the Pod serving a request |
 
 The Portuguese public routes preserve the original GANJJ integration shape.
 Internal type and member names remain English.
@@ -464,81 +465,77 @@ OpenTelemetry export is a later cloud milestone.
 
 ### Image build
 
-The planned Dockerfile is multi-stage:
+The Dockerfile is multi-stage:
 
-1. `mcr.microsoft.com/dotnet/sdk:10.0` restores, builds, tests as appropriate, and
-   publishes the API artifact.
+1. `mcr.microsoft.com/dotnet/sdk:10.0` restores and publishes the API artifact;
+   tests run separately through `dotnet test`.
 2. `mcr.microsoft.com/dotnet/aspnet:10.0` contains only runtime artifacts.
 3. Runtime listens on container port `8080`.
 4. Runtime uses a non-root user.
-5. Image receives explicit version/commit labels.
+5. The local Kubernetes script tags the image `ganjj-order:local` and loads it
+   directly into Minikube.
 
-Example tag policy:
+If registry publication is later required, use explicit version/commit tags,
+for example:
 
 ```text
 backendcloud/order-service:1.0.0
 backendcloud/order-service:sha-<short-commit>
 ```
 
-Deployments use immutable tags. `latest` may be published for convenience but is
-not the source of truth.
+The local `ganjj-order:local` tag is deliberately mutable and the Deployment
+uses `imagePullPolicy: Never`; a registry-backed deployment should use an
+immutable version or digest instead.
 
 ### Local containers
 
 ```mermaid
 flowchart LR
     Host[Host localhost:3004] -->|3004:8080| Api[order-api :8080]
-    Api -->|Server=order-db,1433| Db[(order-db :1433)]
+    Api -->|Server=sqlserver,1433| Db[(sqlserver :1433)]
 ```
 
 Compose will define:
 
 - `order-api` built from this repository;
-- `order-db` using `mcr.microsoft.com/mssql/server:2022-latest`;
+- `sqlserver` using `mcr.microsoft.com/mssql/server:2022-latest`;
 - a named SQL Server data volume;
-- a dedicated Docker network;
+- the default network created by Compose for this project;
 - database health check and API dependency condition;
 - environment variables without committed secret values.
 
-Inside the API container, the database hostname is `order-db`, never `localhost`.
+Inside the API container, the database hostname is `sqlserver`, never `localhost`.
 
-## 17. Registry, AWS, and Kubernetes portability
+## 17. Local Kubernetes deployment
 
-The professor's material establishes the path:
+The current runtime target is Minikube on Docker Desktop. No AWS resources are
+created. `scripts/Start-Kubernetes.ps1` builds `ganjj-order:local`, loads it
+into Minikube, configures the JWT public key and local Secret, then applies the
+manifests in `k8s/`. A registry is not required to present this local deployment.
 
-```text
-source -> artifact -> Docker image -> registry -> Kubernetes
-```
+The Order Deployment declares three stateless replicas behind the `order`
+ClusterIP Service on port 8080. SQL Server runs as a single StatefulSet Pod with
+an 8 GiB persistent claim and the `order-sqlserver` Service on port 1433. Both
+are in the `default` namespace so existing group services can use DNS names.
+The Order Pod uses `shopping-cart:3003` and `product:8000` as peer addresses;
+those service names must be reconciled with the other repositories before an
+end-to-end checkout demonstration.
 
-The first registry target may be Docker Hub to match the laboratory. AWS ECR can
-replace it without rebuilding application code.
-
-The final runtime remains an open deployment decision:
-
-- ECS/Fargate: direct managed container runtime;
-- EKS: closest match to the course's stated Kubernetes progression;
-- EC2 + Docker Compose: simplest and lowest-concept deployment, but less managed.
-
-The service is prepared for all three by:
-
-- listening on a configurable port;
-- storing no local state;
-- using DNS service names from configuration;
-- exposing health endpoints;
-- handling termination gracefully;
-- keeping secrets outside the image;
-- separating migrations from ordinary request handling.
-
-Kubernetes manifests and AWS infrastructure are deliberately deferred until the
-group/course confirms the target.
+Liveness (`/health/live`) checks the API process; readiness (`/health/ready`)
+checks SQL connectivity. SQL Server's readiness probe also runs `SELECT 1`
+instead of only checking an open TCP port. A startup probe allows migrations to
+finish before liveness checks begin. The `/instance` endpoint identifies the responding Pod
+for the course replica demonstration. Local browser access uses `kubectl
+port-forward service/order 3004:8080`; Ingress is not required here.
 
 ## 18. Database migrations and startup
 
 - EF Core migrations are versioned in source control.
-- Production/cloud startup does not silently apply schema changes from every API
-  replica.
-- Local Compose may run a documented one-shot migration command.
-- Cloud deployment uses a one-shot migration task/job before replacing the API.
+- Local Kubernetes sets `Database__ApplyMigrations=true`; EF Core 10's migration
+  lock serializes concurrent replicas. This is a course-demo tradeoff, not a
+  production deployment policy.
+- A future production deployment should apply reviewed migrations in a
+  one-shot task before updating API replicas, with separate schema permissions.
 - Seed data is limited to optional demonstration fixtures; no old-data migration
   exists.
 
@@ -555,7 +552,7 @@ Proposed environment variable names:
 | `Authentication__Jwt__PublicKeyPath` | Yes | Mounted Authorization public-key PEM file |
 | `Services__Cart__BaseUrl` | Yes | Cart URL |
 | `Services__Product__BaseUrl` | Yes | Product URL |
-| `Services__InternalSecret` | Yes initially | Internal HTTP authentication |
+| `Services__Internal__Secret` | Yes initially | Internal HTTP authentication |
 | `Resilience__HttpTimeoutSeconds` | No | Dependency timeout budget |
 | `Outbox__PollIntervalSeconds` | No/future | Outbox dispatch interval when enabled |
 
@@ -574,8 +571,7 @@ Planned GitHub Actions pipeline:
 7. smoke-test the built image and health endpoint;
 8. on an approved version tag, publish an explicitly versioned image.
 
-AWS deployment credentials should use short-lived federation/OIDC when that
-pipeline is added; no long-lived AWS key belongs in the repository.
+No AWS deployment stage or credentials are needed for the local course demo.
 
 ## 21. Architecture decisions
 
@@ -587,6 +583,7 @@ Detailed decisions and their consequences are recorded under `docs/adr`:
 - container/registry portability;
 - deferred support-microservice decision.
 - adopted Authorization RS256 contract (ADR 0006).
+- local Kubernetes deployment and no AWS publication (ADR 0007).
 
 ## 22. Technical acceptance checklist
 
@@ -603,4 +600,7 @@ Detailed decisions and their consequences are recorded under `docs/adr`:
 - [ ] API connects using the database service name on the Docker network.
 - [ ] Image uses a versioned tag and can be pulled on another machine.
 - [ ] Health checks work inside the built container.
+- [ ] Minikube has three ready Order Pods and one ready SQL Server Pod.
+- [ ] The Order Service resolves by DNS from another Pod.
+- [ ] A deleted Order Pod is replaced while the Service remains stable.
 - [ ] Group-level pending decisions remain visible rather than silently assumed.
