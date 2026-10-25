@@ -16,13 +16,31 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
       - run: dotnet restore Ganjj.Order.sln
+      - name: Auditar dependências NuGet
+        run: dotnet list Ganjj.Order.sln package --vulnerable --include-transitive
       - run: dotnet build Ganjj.Order.sln --configuration Release --no-restore
       - run: dotnet test Ganjj.Order.sln --configuration Release --no-build --verbosity normal
+      - name: Configurar Helm
+        uses: azure/setup-helm@v5.0.1
+      - name: Validar chart Helm
+        run: |
+          helm lint helm/order
+          helm template order helm/order > /dev/null
+      - name: Validar artefatos de observabilidade
+        run: |
+          jq empty observability/grafana/order-dashboard.json
+          docker compose -f observability/docker-compose.yml config --quiet
+      - name: Validar sintaxe dos scripts PowerShell
+        shell: pwsh
+        run: |
+          Get-ChildItem scripts -Filter *.ps1 | ForEach-Object {
+            [void][scriptblock]::Create((Get-Content $_.FullName -Raw))
+          }
       - run: docker build --tag ganjj-order:${{ github.sha }} .
 
   publish:
@@ -36,7 +54,7 @@ jobs:
       packages: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Configurar QEMU
         uses: docker/setup-qemu-action@v3
