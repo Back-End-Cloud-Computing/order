@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["image", "replicaCount", "gateway", "existingSecret", "existingJwtConfigMap"],
+  "properties": {
+    "replicaCount": { "type": "integer", "minimum": 1 },
+    "existingSecret": { "type": "string", "minLength": 1 },
+    "existingJwtConfigMap": { "type": "string", "minLength": 1 },
+    "gateway": {
+      "type": "object",
+      "required": ["host"],
+      "properties": {
+        "host": { "type": "string", "minLength": 1 }
+      }
+    },
+    "image": {
+      "type": "object",
+      "required": ["repository", "pullPolicy"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "tag": { "type": "string" },
+        "pullPolicy": { "enum": ["Always", "IfNotPresent", "Never"] }
+      }
+    },
+    "sqlServer": {
+      "type": "object",
+      "required": ["enabled", "image", "storage"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "image": { "type": "string", "minLength": 1 },
+        "storage": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

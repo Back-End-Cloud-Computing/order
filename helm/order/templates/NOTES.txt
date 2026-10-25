@@ -1,0 +1,20 @@
+Order uses the API Gateway as its only external entry point. This chart creates
+no Ingress.
+
+Expected public host through the Gateway:
+  {{ .Values.gateway.host }}
+
+Required pre-existing resources:
+  Secret/{{ .Values.existingSecret }}
+  ConfigMap/{{ .Values.existingJwtConfigMap }} with key public.pem
+
+Wait for the workloads:
+{{- if .Values.sqlServer.enabled }}
+  kubectl rollout status statefulset/order-sqlserver --timeout=600s
+{{- end }}
+  kubectl rollout status deployment/order --timeout=360s
+
+Test through a temporary local tunnel:
+  kubectl port-forward service/order 3004:8080
+  curl http://localhost:3004/health/ready
+  curl http://localhost:3004/metrics

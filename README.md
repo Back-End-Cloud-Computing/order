@@ -17,7 +17,8 @@ reserva estoque no serviço de produtos e mantém um snapshot imutável dos iten
 
 ## Executar com Kubernetes local
 
-Pré-requisitos: Docker Desktop com containers Linux, Minikube, `kubectl` e a
+Pré-requisitos: Docker Desktop com containers Linux, Minikube, `kubectl`, Helm
+3 ou superior e a
 chave pública RS256 do Authorization em `public.pem` (raiz do projeto). A chave
 privada não deve ser copiada. Reserve pelo menos 4 CPUs, 6 GiB para o Minikube
 e espaço para o volume de 8 GiB do SQL Server.
@@ -29,7 +30,8 @@ e espaço para o volume de 8 GiB do SQL Server.
 
 O script inicia o cluster local se necessário, cria um Secret com senha forte
 gerada localmente (ou usa `SQL_SERVER_PASSWORD`), monta a chave pública como
-ConfigMap, baixa a imagem pública multi-arquitetura do GHCR e espera o SQL Server
+ConfigMap, instala/atualiza o chart `helm/order`, baixa a imagem pública
+multi-arquitetura do GHCR e espera o SQL Server
 e as três réplicas do Order ficarem prontos. Ao rodar novamente, ele preserva a
 senha do banco persistente; `INTERNAL_SERVICE_SECRET` pode ser alterado para
 combinar com o grupo. Nenhum valor secreto é versionado no Git.
@@ -51,6 +53,8 @@ Em outro terminal, acesse `http://localhost:3004/scalar/v1`,
 O endpoint `/instance` identifica o Pod que atendeu a requisição.
 `GET /metrics` expõe contadores e latência no formato Prometheus apenas pelo
 Service interno ou pelo `port-forward`; o Gateway não encaminha essa rota.
+O chart não cria Ingress: `api.ganjj.local` continua pertencendo exclusivamente
+ao API Gateway.
 
 Para demonstrar o DNS interno e a autorrecuperação:
 

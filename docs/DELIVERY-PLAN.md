@@ -139,6 +139,8 @@ Scope:
 - versioned Deployment/Service YAML with three Order replicas;
 - one SQL Server StatefulSet with persistent storage and Service DNS;
 - Kubernetes Secret for credentials and ConfigMap for the JWT public key;
+- Helm chart with externalized image, replicas, resources, peer URLs and
+  Gateway host metadata, without a direct Order Ingress;
 - liveness/readiness/startup probes and local port-forward;
 - internal DNS, replica identity, and Pod recovery demonstration.
 

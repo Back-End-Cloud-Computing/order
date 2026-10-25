@@ -536,9 +536,11 @@ Inside the API container, the database hostname is `sqlserver`, never `localhost
 
 The current runtime target is Minikube on Docker Desktop. No AWS resources are
 created. `scripts/Start-Kubernetes.ps1` configures the JWT public key and local
-Secret, then applies the manifests in `k8s/`. By default Minikube pulls the
-public multi-architecture image from GHCR; `-UseLocalImage` is the explicit
-fallback for unpublished development changes.
+Secret, then installs or upgrades the `helm/order` chart. The chart exposes
+image, replica count, resources, peer URLs, Gateway host metadata and optional
+local SQL Server configuration as values; credentials remain in an external
+Secret. By default Minikube pulls the public multi-architecture image from GHCR;
+`-UseLocalImage` is the explicit fallback for unpublished development changes.
 
 The Order Deployment declares three stateless replicas behind the `order`
 ClusterIP Service on port 8080. SQL Server runs as a single StatefulSet Pod with
@@ -553,7 +555,9 @@ checks SQL connectivity. SQL Server's readiness probe also runs `SELECT 1`
 instead of only checking an open TCP port. A startup probe allows migrations to
 finish before liveness checks begin. The `/instance` endpoint identifies the responding Pod
 for the course replica demonstration. Local browser access uses `kubectl
-port-forward service/order 3004:8080`; Ingress is not required here.
+port-forward service/order 3004:8080`. The Order chart creates no Ingress:
+`api.ganjj.local` is declared only as the expected Gateway host, and the Gateway
+remains the sole external entry point.
 
 ## 18. Database migrations and startup
 

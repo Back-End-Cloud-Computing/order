@@ -1,0 +1,97 @@
+{{- $image := printf "%s:%s" .Values.image.repository (default .Chart.AppVersion .Values.image.tag) }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order
+  labels:
+    app.kubernetes.io/name: order
+    app.kubernetes.io/part-of: ganjj
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: order
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: order
+        app.kubernetes.io/part-of: ganjj
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: /metrics
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: order
+          image: {{ $image }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: Production
+            - name: ConnectionStrings__OrderDatabase
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.existingSecret }}
+                  key: connection-string
+            - name: Authentication__Jwt__PublicKeyPath
+              value: /app/keys/public.pem
+            - name: Authentication__Jwt__Issuer
+              value: ganjj-authorization
+            - name: Services__Cart__BaseUrl
+              value: {{ .Values.services.cartBaseUrl | quote }}
+            - name: Services__Product__BaseUrl
+              value: {{ .Values.services.productBaseUrl | quote }}
+            - name: Services__Support__BaseUrl
+              value: {{ .Values.services.supportBaseUrl | quote }}
+            - name: Services__Internal__Secret
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.existingSecret }}
+                  key: internal-secret
+            - name: Database__ApplyMigrations
+              value: {{ .Values.database.applyMigrations | quote }}
+            - name: ApiDocs__Enabled
+              value: {{ .Values.apiDocs.enabled | quote }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          startupProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          volumeMounts:
+            - name: jwt-public-key
+              mountPath: /app/keys
+              readOnly: true
+      volumes:
+        - name: jwt-public-key
+          configMap:
+            name: {{ .Values.existingJwtConfigMap }}
+            items:
+              - key: public.pem
+                path: public.pem

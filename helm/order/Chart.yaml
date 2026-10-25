@@ -1,0 +1,6 @@
+apiVersion: v2
+name: order
+description: GANJJ Order service with optional local SQL Server
+type: application
+version: 0.1.0
+appVersion: "latest"

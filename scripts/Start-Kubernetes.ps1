@@ -5,8 +5,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $publicKeyPath = Join-Path $root 'public.pem'
-$sqlManifest = Join-Path $root 'k8s/order-sqlserver.yaml'
-$orderManifest = Join-Path $root 'k8s/order.yaml'
+$chartPath = Join-Path $root 'helm/order'
 
 if (-not (Test-Path -LiteralPath $publicKeyPath -PathType Leaf)) {
     throw 'Copie a chave publica RS256 do Authorization para public.pem na raiz do repositorio (nunca a chave privada).'
@@ -23,6 +22,11 @@ if ($null -eq $minikubeCommand) {
     if (Test-Path -LiteralPath $installedMinikube) {
         $minikubeCommand = @{ Source = $installedMinikube }
     }
+}
+
+$helmCommand = Get-Command helm -ErrorAction SilentlyContinue
+if ($null -eq $helmCommand) {
+    throw 'Helm nao encontrado. Instale o Helm 3 ou superior antes de executar este script.'
 }
 
 $context = & kubectl config current-context 2>$null
@@ -135,18 +139,25 @@ if ($UseLocalImage) {
     }
 }
 
-& kubectl -n default apply -f $sqlManifest
-if ($LASTEXITCODE -ne 0) { throw 'Falha ao aplicar o SQL Server.' }
+$helmArguments = @(
+    'upgrade', '--install', 'order', $chartPath,
+    '--namespace', 'default',
+    '--wait',
+    '--timeout', '10m'
+)
+if ($UseLocalImage) {
+    $helmArguments += @(
+        '--set', 'image.repository=ganjj-order',
+        '--set', 'image.tag=local',
+        '--set', 'image.pullPolicy=Never'
+    )
+}
+
+& $helmCommand.Source @helmArguments
+if ($LASTEXITCODE -ne 0) { throw 'Falha ao instalar o chart Helm do Order.' }
+
 & kubectl -n default rollout status statefulset/order-sqlserver --timeout=600s
 if ($LASTEXITCODE -ne 0) { throw 'SQL Server nao ficou pronto; consulte kubectl describe pod order-sqlserver-0.' }
-
-& kubectl -n default apply -f $orderManifest
-if ($LASTEXITCODE -ne 0) { throw 'Falha ao aplicar o Order.' }
-if ($UseLocalImage) {
-    $localImagePatch = '{"spec":{"template":{"spec":{"containers":[{"name":"order","image":"ganjj-order:local","imagePullPolicy":"Never"}]}}}}'
-    & kubectl -n default patch deployment order --type=strategic --patch $localImagePatch
-    if ($LASTEXITCODE -ne 0) { throw 'Falha ao configurar a imagem local do Order.' }
-}
 & kubectl -n default rollout status deployment/order --timeout=360s
 if ($LASTEXITCODE -ne 0) { throw 'Order nao ficou pronto; consulte kubectl logs deployment/order.' }
 

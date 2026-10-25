@@ -1,0 +1,50 @@
+image:
+  repository: ghcr.io/back-end-cloud-computing/order
+  tag: ""
+  pullPolicy: Always
+
+replicaCount: 3
+
+# The host belongs to the API Gateway and is informational in this chart. Order
+# intentionally creates no Ingress of its own.
+gateway:
+  host: api.ganjj.local
+
+# Created outside the chart. Expected keys: connection-string,
+# sqlserver-sa-password and internal-secret.
+existingSecret: order-secrets
+
+# Created outside the chart from Authorization's public.pem. Expected key:
+# public.pem. This is public material, but keeping it external avoids a stale key.
+existingJwtConfigMap: order-jwt-public-key
+
+services:
+  cartBaseUrl: http://shopping-cart:3003
+  productBaseUrl: http://product-api:8000
+  supportBaseUrl: http://support:8090
+
+database:
+  applyMigrations: true
+
+apiDocs:
+  enabled: true
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+sqlServer:
+  enabled: true
+  image: mcr.microsoft.com/mssql/server:2022-latest
+  storage: 8Gi
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      cpu: "2"
+      memory: 3Gi
