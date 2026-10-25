@@ -12,6 +12,12 @@ public sealed class ProductServiceOptions
     public string BaseUrl { get; init; } = "http://localhost:8000";
 }
 
+public sealed class SupportServiceOptions
+{
+    public const string SectionName = "Services:Support";
+    public string BaseUrl { get; init; } = "http://localhost:8090";
+}
+
 public sealed class InternalServiceOptions
 {
     public const string SectionName = "Services:Internal";

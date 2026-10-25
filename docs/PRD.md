@@ -31,9 +31,8 @@ The new service is one of five domain microservices:
 | Order | Rodrigo Alves | C# / ASP.NET Core | SQL Server |
 | Promotion | Lucas Stopinski | PHP / Laravel | MySQL |
 
-A support microservice is required at the group level by the professor's rubric,
-but its type and owner are still a group decision. That decision does not block
-the core order scope.
+The group selected Eduardo's Support microservice for e-mail, SMS, and WhatsApp.
+For N2, Order integrates with it through internal HTTP after checkout commits.
 
 ## 3. Product goal
 
@@ -91,10 +90,11 @@ The service is successful when the team can demonstrate that:
 - Issues the JWT used by the Order service.
 - Defines the stable customer identifier and administrator claim.
 
-### Future support microservice
+### Support microservice
 
-- May consume an `OrderCreated` integration event.
-- Its implementation is explicitly outside the current core scope.
+- Accepts the definitive `OrderCreated` payload over internal HTTP for N2.
+- Deduplicates notifications by the persisted event UUID.
+- Its own implementation remains outside the Order repository.
 
 ## 6. Scope
 
@@ -103,6 +103,7 @@ The service is successful when the team can demonstrate that:
 - Authenticated order creation from the current server-to-server Cart snapshot.
 - Historical snapshots of customer, delivery, product, and available price data.
 - SQL Server persistence owned exclusively by Order.
+- Best-effort post-commit `OrderCreated` notification to Support.
 - Stock coordination with compensating actions.
 - Idempotent order creation.
 - Customer order list and detail endpoints.
@@ -124,7 +125,7 @@ The service is successful when the team can demonstrate that:
 - Editing the commercial contents of an order after creation.
 - Migrating old PostgreSQL order data.
 - Sharing SQL Server tables with another service.
-- Selecting or implementing the group support microservice.
+- Implementing the Support service itself.
 - AWS publication and production-grade cloud infrastructure.
 
 ## 7. Core user journeys
@@ -186,7 +187,8 @@ The service is successful when the team can demonstrate that:
 | FR-017 | Expose unauthenticated liveness and readiness endpoints. | Must |
 | FR-018 | Return consistent RFC 9457-style problem responses for errors. | Should |
 | FR-019 | Upgrade Cart integration to a versioned, promotion-aware checkout quote after group approval. | Could |
-| FR-020 | Produce an `OrderCreated` event through a replaceable publisher when the group chooses a consumer. | Could |
+| FR-020 | After commit, send the persisted `OrderCreated` event to Support without failing the order when Support is unavailable. | Must |
+| FR-021 | After the authoritative Cart quote supplies a coupon, eventually publish the accepted `OrderConfirmed` contract for idempotent consumption by Promotion. | Could |
 
 ## 9. Non-functional requirements
 
@@ -252,7 +254,7 @@ from the client request because checkout data must be obtained from Cart.
 | Compensation fails | Stock and order state diverge | Structured alert, persisted recovery record, manual/retry procedure |
 | JWT claims differ among languages | Authentication breaks at integration | Freeze a shared token example and contract test |
 | Local Kubernetes lacks memory or disk | Pods fail to schedule or SQL Server cannot start | Reserve cluster resources and verify the PVC before the presentation |
-| Support microservice remains undecided | Group rubric remains incomplete | Track as group-level decision; do not block Order core |
+| Support is unavailable after commit | Notification can be lost in the N2 HTTP stage | Keep the order completed, log the event UUID, and migrate the same payload to RabbitMQ later |
 
 ## 14. Acceptance criteria
 
@@ -264,15 +266,13 @@ The PRD is accepted when the group agrees that:
 - Product owns stock and exposes compensatable operations.
 - SQL Server belongs only to Order.
 - Public order behaviors and authorization rules are correct.
-- Support-microservice selection is explicitly a separate group action.
+- Support notification uses internal HTTP now and preserves the payload for RabbitMQ later.
 - Docker and TDD deliverables match the course expectations.
 
 ## 15. Open group decisions
 
 These do not block documentation or the initial Order domain implementation:
 
-1. Which support microservice will satisfy the rubric.
-2. Final local Kubernetes namespace and Gateway/Ingress routing shared by the group.
-3. Whether Docker Hub publication is additionally required for the final presentation.
-4. The final JWT issuer, audience, claim names, and key distribution method.
-5. The final Product stock-reservation contract.
+1. Final local Kubernetes namespace and Gateway/Ingress routing shared by the group.
+2. Whether Docker Hub publication is additionally required for the final presentation.
+3. The final Product stock-reservation contract.

@@ -13,6 +13,7 @@ public sealed class Order
     public Guid CustomerId { get; private set; }
     public string? CustomerName { get; private set; }
     public string? CustomerEmail { get; private set; }
+    public Guid OrderCreatedEventId { get; private set; }
     public Guid? QuoteId { get; private set; }
     public long? CartVersion { get; private set; }
     public OrderStatus Status { get; private set; }
@@ -34,7 +35,8 @@ public sealed class Order
         IEnumerable<OrderItem> items,
         DateTimeOffset now,
         Guid? quoteId = null,
-        long? cartVersion = null)
+        long? cartVersion = null,
+        Guid? orderCreatedEventId = null)
     {
         if (id == Guid.Empty)
         {
@@ -44,6 +46,12 @@ public sealed class Order
         if (customerId == Guid.Empty)
         {
             throw new DomainValidationException("CustomerId is required.");
+        }
+
+        var eventId = orderCreatedEventId ?? id;
+        if (eventId == Guid.Empty)
+        {
+            throw new DomainValidationException("OrderCreatedEventId is required.");
         }
 
         ArgumentNullException.ThrowIfNull(deliveryAddress);
@@ -67,6 +75,7 @@ public sealed class Order
             CustomerId = customerId,
             CustomerName = string.IsNullOrWhiteSpace(customerName) ? null : customerName.Trim(),
             CustomerEmail = string.IsNullOrWhiteSpace(customerEmail) ? null : customerEmail.Trim(),
+            OrderCreatedEventId = eventId,
             QuoteId = quoteId,
             CartVersion = cartVersion,
             Status = OrderStatus.Pending,

@@ -318,24 +318,30 @@ Production outcome:
 
 - update use case and optimistic concurrency behavior.
 
-### Cycle 11 - Future outbox dispatch (deferred)
+### Cycle 11 - Post-commit Support notification and future outbox
 
-This cycle is not part of the interim current-Cart implementation. It becomes
-active only after the group approves safe Cart quote consumption or an
-`OrderCreated` consumer.
+The direct HTTP `OrderCreated` notification is active for N2. A durable outbox
+remains deferred until RabbitMQ or safe Cart quote consumption is approved.
 
 Tests:
+
+- committed order sends the persisted `OrderCreated` event UUID to Support;
+- Support failure or timeout leaves the order completed and does not compensate stock;
+- the JWT e-mail and correlation ID reach the Support contract;
+- Support deduplicates repeated delivery of the same event UUID.
+
+Future outbox tests:
 
 - committed Cart-consume action is eventually dispatched;
 - successful dispatch marks the message processed;
 - transient failure increments attempts and remains pending;
 - repeated dispatch uses the same quote/operation identifier;
-- poison messages stop retrying indefinitely and expose last error;
-- optional `OrderCreated` event remains disabled until configured.
+- poison messages stop retrying indefinitely and expose last error.
 
 Production outcome:
 
-- background outbox dispatcher and Cart consume behavior.
+- current post-commit HTTP notifier; later, a background outbox dispatcher and
+  Cart consume behavior.
 
 ### Cycle 12 - Health, configuration, and containers
 

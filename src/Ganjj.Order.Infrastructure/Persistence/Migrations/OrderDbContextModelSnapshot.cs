@@ -50,6 +50,9 @@ namespace Ganjj.Order.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<Guid>("OrderCreatedEventId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid?>("QuoteId")
                         .HasColumnType("uniqueidentifier");
 
@@ -84,6 +87,9 @@ namespace Ganjj.Order.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.HasIndex("CreatedAt");
+
+                    b.HasIndex("OrderCreatedEventId")
+                        .IsUnique();
 
                     b.HasIndex("QuoteId")
                         .IsUnique()

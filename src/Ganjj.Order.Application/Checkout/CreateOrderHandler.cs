@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Ganjj.Order.Application.Abstractions;
 using Ganjj.Order.Domain.Orders;
+using Microsoft.Extensions.Logging;
 using OrderAggregate = Ganjj.Order.Domain.Orders.Order;
 
 namespace Ganjj.Order.Application.Checkout;
@@ -10,8 +11,10 @@ public sealed class CreateOrderHandler(
     IOrderRepository repository,
     ICartClient cartClient,
     IProductStockClient stockClient,
+    IOrderCreatedNotifier orderCreatedNotifier,
     TimeProvider timeProvider,
-    IIdentifierGenerator identifiers)
+    IIdentifierGenerator identifiers,
+    ILogger<CreateOrderHandler> logger)
 {
     public async Task<CreateOrderResult> HandleAsync(
         CreateOrderCommand command,
@@ -52,6 +55,7 @@ public sealed class CreateOrderHandler(
             ValidateCart(cart);
 
             var orderId = identifiers.NewId();
+            var orderCreatedEventId = identifiers.NewId();
             var items = cart.Items.Select(item => OrderItem.Create(
                 identifiers.NewId(),
                 orderId,
@@ -81,9 +85,11 @@ public sealed class CreateOrderHandler(
                 command.CustomerEmail,
                 command.DeliveryAddress,
                 items,
-                now);
+                now,
+                orderCreatedEventId: orderCreatedEventId);
 
             await repository.SaveAndCompleteAsync(order, command.IdempotencyKey, cancellationToken);
+            await TryNotifySupportAsync(order, correlationId, cancellationToken);
             return CreateOrderResult.From(order);
         }
         catch (Exception checkoutFailure)
@@ -116,6 +122,44 @@ public sealed class CreateOrderHandler(
 
             await repository.RemoveIdempotencyAsync(command.IdempotencyKey, CancellationToken.None);
             throw;
+        }
+    }
+
+    private async Task TryNotifySupportAsync(
+        OrderAggregate order,
+        string correlationId,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(order.CustomerEmail))
+        {
+            logger.LogWarning(
+                "Order {OrderId} was created without an email claim; Support notification {EventId} was skipped.",
+                order.Id,
+                order.OrderCreatedEventId);
+            return;
+        }
+
+        try
+        {
+            await orderCreatedNotifier.NotifyAsync(new OrderCreatedNotification(
+                order.OrderCreatedEventId,
+                order.CreatedAt,
+                order.Id,
+                order.Code,
+                order.CustomerId,
+                order.CustomerEmail,
+                null,
+                order.Total,
+                "BRL",
+                correlationId), cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(
+                exception,
+                "Order {OrderId} was created, but Support notification {EventId} failed.",
+                order.Id,
+                order.OrderCreatedEventId);
         }
     }
 

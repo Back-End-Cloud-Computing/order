@@ -24,6 +24,7 @@ public static class DependencyInjection
 
         services.Configure<CartServiceOptions>(configuration.GetSection(CartServiceOptions.SectionName));
         services.Configure<ProductServiceOptions>(configuration.GetSection(ProductServiceOptions.SectionName));
+        services.Configure<SupportServiceOptions>(configuration.GetSection(SupportServiceOptions.SectionName));
         services.Configure<InternalServiceOptions>(configuration.GetSection(InternalServiceOptions.SectionName));
 
         services.AddHttpClient<ICartClient, CartClient>((provider, client) =>
@@ -37,6 +38,12 @@ public static class DependencyInjection
             var options = provider.GetRequiredService<IOptions<ProductServiceOptions>>().Value;
             client.BaseAddress = new Uri(options.BaseUrl);
             client.Timeout = TimeSpan.FromSeconds(configuration.GetValue("Resilience:HttpTimeoutSeconds", 3));
+        });
+        services.AddHttpClient<IOrderCreatedNotifier, SupportNotificationClient>((provider, client) =>
+        {
+            var options = provider.GetRequiredService<IOptions<SupportServiceOptions>>().Value;
+            client.BaseAddress = new Uri(options.BaseUrl);
+            client.Timeout = TimeSpan.FromSeconds(configuration.GetValue("Resilience:SupportTimeoutSeconds", 2));
         });
 
         return services;

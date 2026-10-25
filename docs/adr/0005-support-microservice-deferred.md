@@ -1,6 +1,6 @@
 # ADR 0005 - Defer support-microservice selection to the group
 
-Status: Accepted as a scope boundary  
+Status: Superseded by ADR 0009
 Date: 2026-08-21
 
 ## Context

@@ -67,11 +67,16 @@ apenas uma entrada temporária e não serve para demonstrar distribuição entre
 réplicas.
 
 `order` e `order-sqlserver` são Services internos (`ClusterIP`) no namespace
-`default`. As URLs de Cart e Product no manifesto pressupõem Services
-`shopping-cart:3003` e `product-api:8000` nesse mesmo namespace; sem esses serviços,
+`default`. As URLs de Cart, Product e Support no manifesto pressupõem Services
+`shopping-cart:3003`, `product-api:8000` e `support:8090` nesse mesmo namespace; sem Cart e Product,
 health/Scalar funcionam, mas o checkout integrado não. Esta implantação é
 exclusivamente local, sem AWS. O volume do SQL Server é persistente; não apague
 o PVC para reiniciar a apresentação.
+
+Após confirmar o pedido, o Order tenta enviar `OrderCreated` ao Support. A falha
+ou demora do Support é apenas registrada em log e não desfaz o pedido. Para a
+demonstração de e-mail no Mailpit, use o mesmo `INTERNAL_SERVICE_SECRET` nos dois
+serviços.
 
 ## Executar com Docker
 

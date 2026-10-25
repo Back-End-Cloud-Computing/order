@@ -30,7 +30,8 @@ public sealed class OrderRequestValidationTests : IDisposable
     public async Task CreateOrder_WhenRequestIsValid_ShouldReturnCreated()
     {
         var repository = new SuccessfulOrderRepository();
-        using var factory = Factory(repository);
+        var notifier = new RecordingOrderCreatedNotifier();
+        using var factory = Factory(repository, notifier);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false
@@ -64,6 +65,8 @@ public sealed class OrderRequestValidationTests : IDisposable
         Assert.Equal(HttpStatusCode.OK, listResponse.StatusCode);
         using var orders = JsonDocument.Parse(await listResponse.Content.ReadAsStringAsync());
         Assert.Single(orders.RootElement.EnumerateArray());
+        var notification = Assert.Single(notifier.Notifications);
+        Assert.Equal("customer@ganjj.test", notification.CustomerEmail);
     }
 
     [Fact]
@@ -82,7 +85,9 @@ public sealed class OrderRequestValidationTests : IDisposable
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
-    private WebApplicationFactory<Program> Factory(SuccessfulOrderRepository repository) =>
+    private WebApplicationFactory<Program> Factory(
+        SuccessfulOrderRepository repository,
+        RecordingOrderCreatedNotifier? notifier = null) =>
         new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             builder.UseEnvironment("Development");
@@ -94,6 +99,7 @@ public sealed class OrderRequestValidationTests : IDisposable
                 services.AddScoped<ICartClient, ValidCartClient>();
                 services.AddScoped<IProductStockClient, SuccessfulProductStockClient>();
                 services.AddSingleton<IIdentifierGenerator, TestIdentifierGenerator>();
+                services.AddSingleton<IOrderCreatedNotifier>(notifier ?? new RecordingOrderCreatedNotifier());
             });
         });
 
@@ -152,6 +158,19 @@ public sealed class OrderRequestValidationTests : IDisposable
     private sealed class TestIdentifierGenerator : IIdentifierGenerator
     {
         public Guid NewId() => Guid.NewGuid();
+    }
+
+    private sealed class RecordingOrderCreatedNotifier : IOrderCreatedNotifier
+    {
+        public List<OrderCreatedNotification> Notifications { get; } = [];
+
+        public Task NotifyAsync(
+            OrderCreatedNotification notification,
+            CancellationToken cancellationToken)
+        {
+            Notifications.Add(notification);
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class SuccessfulOrderRepository : IOrderRepository

@@ -47,7 +47,8 @@ Administrator tokens use `role: ADMIN`.
 Order derives account identity only from UUID `sub`
 and maps `role == ADMIN` to its Admin policy. It validates the token locally with
 the Authorization public key, fixes the accepted algorithm to RS256, requires
-issuer `ganjj-authorization`, checks lifetime, and requires `typ == access`.
+issuer `ganjj-authorization`, checks lifetime, and requires `typ == access` plus
+a non-empty `email` claim used by the Support notification contract.
 Audience is not validated because the provider does not emit `aud`.
 
 The public key is available from `GET /auth/public-key` and is supplied to Order
@@ -293,10 +294,27 @@ The gateway must:
 - preserve relevant status codes and `Location` headers;
 - apply CORS/rate limiting without changing the Order contract.
 
-## 8. Future integration event
+Verified in the Gateway `routing.test.ts` contract test: both order route shapes
+reach `order:8080`; the request headers and body cross unchanged; the response
+status and `Location` are preserved; and a client-supplied internal secret is
+removed. Order adds the received correlation ID to its structured logging scope.
 
-The support microservice is undecided. Order therefore defines but does not yet
-require a transport for this event:
+## 8. Support notification
+
+Owner: Support (Eduardo)
+
+Status: Accepted and implemented over internal HTTP for N2
+
+After the order transaction commits, Order calls:
+
+```http
+POST http://support:8090/internal/notifications
+x-internal-secret: <shared-secret>
+X-Correlation-ID: <correlation-id>
+Content-Type: application/json
+```
+
+The body is the definitive `OrderCreated` payload:
 
 ```json
 {
@@ -313,9 +331,76 @@ require a transport for this event:
 }
 ```
 
-Transport, topic/queue, consumer, and personal-data policy remain pending.
+`event_id` is a UUID stored with the order and is reused if the event is ever
+redelivered. `customer_email` comes from the JWT `email` claim. The optional
+`customer_phone` is omitted until Client exposes a stable contract. Support
+failures and the two-second timeout are logged after commit and never fail or
+compensate the completed order. RabbitMQ can later transport this same payload.
 
-## 9. Contract freeze checklist
+## 9. RabbitMQ `OrderConfirmed` contract with Promotion
+
+Status: Accepted in Order and Promotion; publisher and consumer implementation
+remain separate follow-up work.
+
+The shared names use English, matching the group's payload convention. The
+earlier Portuguese proposal `pedido.confirmado` is replaced by:
+
+| Element | Value |
+| --- | --- |
+| Exchange | `ganjj.orders` |
+| Exchange type | `direct`, durable |
+| Routing key | `order.confirmed` |
+| Promotion queue | `promotion.order-confirmed`, durable |
+| Binding | `promotion.order-confirmed` -> `ganjj.orders` with `order.confirmed` |
+| Delivery | persistent message, publisher confirm, manual consumer ack |
+| Content type | `application/json` |
+
+Payload version 1:
+
+```json
+{
+  "schema_version": 1,
+  "event_id": "e82a1f56-f69f-4dc4-9f10-3a05b3e90fac",
+  "event_type": "OrderConfirmed",
+  "occurred_at": "2026-10-25T12:00:00Z",
+  "order_id": "adc8aacb-51a2-40d1-a8c0-e7ef5464f8aa",
+  "coupon_code": "INVERNO20",
+  "items": [
+    {
+      "product_id": "6ad83139dbb96e49bc0aef29",
+      "quantity": 2
+    }
+  ],
+  "correlation_id": "6a2f41a5-c3f9-4d0f-a8cb-0a6e8a8e1a11"
+}
+```
+
+Rules:
+
+- `schema_version` is exactly `1`; incompatible changes require a new version.
+- `event_id` is a stable UUID and becomes the AMQP `message_id`.
+- `order_id` is a UUID and is Promotion's idempotency key.
+- `coupon_code` is an uppercase string or `null`. A null coupon is a valid no-op
+  that the consumer acknowledges without incrementing usage.
+- `product_id` is a string to preserve the Product service identifier type;
+  `quantity` is a positive integer.
+- `correlation_id` is optional in the JSON and is also copied to the AMQP
+  correlation property when present.
+- Order writes the event to an outbox in the same SQL transaction as the order,
+  then publishes with confirms. RabbitMQ delivery is at least once.
+- Promotion records a unique processed `order_id` in the same MySQL transaction
+  that increments coupon usage. A duplicate is acknowledged without increment.
+- Promotion acknowledges only after commit; transient failures are negatively
+  acknowledged for redelivery. Invalid version/payload is rejected and must be
+  operationally visible instead of looping forever.
+- No customer identity, e-mail, address, price, or other personal data is sent.
+
+Implementation dependency: the current Order Cart adapter does not receive or
+persist the coupon code. The publisher stays disabled until the authoritative
+Cart checkout quote provides `coupon_code`; inventing or accepting the coupon
+from the public Order request is forbidden.
+
+## 10. Contract freeze checklist
 
 - [ ] Cart agrees with quote route and payload.
 - [ ] Promotion rules are represented in the quote snapshot.
@@ -324,7 +409,10 @@ Transport, topic/queue, consumer, and personal-data policy remain pending.
 - [x] JWT issuer, algorithm, and claim names are implemented by Authorization.
 - [x] Order accepts the Authorization contract through ADR 0006 and local consumer tests.
 - [x] A real provider access token passes the cross-service smoke test and its refresh token is rejected.
-- [ ] Gateway header forwarding is verified.
+- [x] Gateway header forwarding is verified.
+- [x] Support HTTP payload, shared secret, correlation ID, and non-blocking failure behavior are covered by tests.
+- [x] RabbitMQ `OrderConfirmed` names, payload, delivery, and idempotency contract match Promotion.
+- [ ] Order publisher and Promotion consumer pass duplicate/redelivery tests.
 - [ ] Success and each named error have JSON examples.
 - [ ] Order consumer contract tests pass against provider examples.
 - [ ] Real cross-service smoke checkout succeeds before final presentation.

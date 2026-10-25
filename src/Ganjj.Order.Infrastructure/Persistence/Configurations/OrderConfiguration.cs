@@ -19,6 +19,7 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<OrderAggrega
         builder.HasIndex(order => order.Code).IsUnique();
         builder.Property(order => order.CustomerName).HasMaxLength(200);
         builder.Property(order => order.CustomerEmail).HasMaxLength(320);
+        builder.HasIndex(order => order.OrderCreatedEventId).IsUnique();
         builder.Property(order => order.Status).HasConversion<string>().HasMaxLength(30).IsRequired();
         builder.Property(order => order.Total).HasPrecision(18, 2);
         builder.Property(order => order.TrackingNumber).HasMaxLength(100);

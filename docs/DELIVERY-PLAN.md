@@ -167,7 +167,7 @@ Scope:
 | 8 | Product stock client | Product examples | Consumer contract tests |
 | 9 | Checkout Saga | Items 6-8 | Application failure tests |
 | 10 | Atomic order persistence | Checkout Saga | Rollback tests |
-| 11 | Future outbox/Cart quote consumption | Group approval | Deferred dispatcher tests |
+| 11 | Post-commit Support notification | Support HTTP contract | Unit and HTTP contract tests |
 | 12 | Dockerfile/Compose/health | API + migration | Container smoke tests |
 | 13 | Real cross-service checkout | Provider implementations | End-to-end evidence |
 | 14 | Registry publication | Docker image | Pull/run proof |
@@ -204,7 +204,7 @@ Scope:
 
 ### Group
 
-- select support microservice;
+- demonstrate the selected Support service and Mailpit with Order;
 - agree shared local Kubernetes namespace, service names, and gateway routing;
 - define gateway ownership/routing;
 - agree shared correlation/internal-auth conventions.
@@ -242,7 +242,7 @@ Scope:
 - [ ] Versioned image is published and pullable.
 - [ ] Health/log evidence is available.
 - [ ] Local Kubernetes deployment passes the three-replica, DNS, and recovery demo.
-- [ ] Support-microservice decision is reflected at group architecture level.
+- [x] Support-microservice decision is reflected at group architecture level.
 
 ## 8. Professor-rubric traceability
 
@@ -251,7 +251,7 @@ Scope:
 | No frontend required | REST/OpenAPI demonstrations only |
 | Distinct domain languages | Order shown as C# alongside team services |
 | Distinct databases | Order owns SQL Server; no shared schema |
-| Support microservice | Explicit group decision remains tracked |
+| Support microservice | OrderCreated HTTP integration with Eduardo's Support service |
 | Cloud techniques | containers, network, externalized config, health, Kubernetes orchestration |
 | Docker artifact flow | source -> publish artifact -> image -> container -> registry |
 | Microservice integration | Current Cart snapshot + Product stock Saga |
@@ -260,9 +260,8 @@ Scope:
 
 ## 9. Known non-blocking decisions
 
-- Support microservice type/owner.
 - Whether Docker Hub publication is additionally required for the final demo.
 - Final group gateway/Ingress approach for local Kubernetes.
-- Optional event broker/`OrderCreated` consumer.
+- Implement publisher/consumer for the accepted Promotion `OrderConfirmed` contract.
 
 These decisions must close before M7/M8, not before M1-M4.

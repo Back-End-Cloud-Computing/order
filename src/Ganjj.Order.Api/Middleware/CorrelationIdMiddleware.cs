@@ -1,6 +1,8 @@
 namespace Ganjj.Order.Api.Middleware;
 
-public sealed class CorrelationIdMiddleware(RequestDelegate next)
+public sealed class CorrelationIdMiddleware(
+    RequestDelegate next,
+    ILogger<CorrelationIdMiddleware> logger)
 {
     public const string HeaderName = "X-Correlation-ID";
     public const string ItemName = "CorrelationId";
@@ -14,6 +16,12 @@ public sealed class CorrelationIdMiddleware(RequestDelegate next)
 
         context.Items[ItemName] = correlationId;
         context.Response.Headers[HeaderName] = correlationId;
-        await next(context);
+        using (logger.BeginScope(new Dictionary<string, object?>
+               {
+                   [ItemName] = correlationId
+               }))
+        {
+            await next(context);
+        }
     }
 }

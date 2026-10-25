@@ -71,12 +71,15 @@ flowchart LR
     Cart --> Product[Product Service<br/>MongoDB]
     Cart --> Promotion[Promotion Service<br/>MySQL]
     Order --> Product
+    Order -. future OrderConfirmed .-> Promotion
     Order --> Sql[(Order SQL Server)]
-    Order -. future event .-> Support[Support Microservice<br/>pending group decision]
+    Order -->|post-commit internal HTTP| Support[Support Microservice]
 ```
 
 Only Order connects to the Order SQL Server database. Arrows between services are
-HTTP unless a future support-service decision introduces a message broker.
+HTTP for N2. Support may later consume the same `OrderCreated` payload through
+RabbitMQ. Promotion has a separate accepted `OrderConfirmed` RabbitMQ contract
+whose publisher and consumer are not implemented yet.
 
 ## 5. Repository and solution structure
 
@@ -112,7 +115,8 @@ order/
 ### `Ganjj.Order.Application`
 
 - Use cases: create, get, list mine, list all, update tracking.
-- Ports/interfaces for persistence, Cart, Product, clock, and identifier creation.
+- Ports/interfaces for persistence, Cart, Product, Support notification, clock,
+  and identifier creation.
 - DTOs and use-case results.
 - Saga orchestration and compensation decisions.
 - No direct dependency on concrete infrastructure.
@@ -121,8 +125,8 @@ order/
 
 - EF Core `OrderDbContext`, configurations, and migrations.
 - SQL Server repositories and idempotency store.
-- Typed Cart and Product HTTP clients.
-- Outbox dispatcher for post-commit integration actions.
+- Typed Cart, Product, and Support HTTP clients.
+- Extension point for a future outbox dispatcher.
 - Configuration binding and dependency health checks.
 
 ### `Ganjj.Order.Api`
@@ -210,7 +214,9 @@ restore endpoint for every item already decremented in reverse order.
    - insert Order;
    - insert OrderItems;
    - mark the idempotency record completed with the response snapshot.
-9. Return `201 Created` after the SQL transaction commits.
+9. After commit, attempt `OrderCreated` delivery to Support with a persisted event
+   UUID and a short timeout. Log and continue if Support fails.
+10. Return `201 Created`.
 
 The interim implementation does not clear Cart. A future versioned quote/consume
 contract can add a post-commit outbox action without changing the public request.
@@ -234,6 +240,7 @@ On a failure before SQL commit:
 | `CustomerId` | `Guid` | Authorization account UUID from `sub`, no database FK |
 | `CustomerName` | string? | Optional snapshot when supplied by trusted token/service |
 | `CustomerEmail` | string? | Optional snapshot for display/notification |
+| `OrderCreatedEventId` | `Guid` | Unique, persisted Support idempotency key |
 | `QuoteId` | `Guid?` | Reserved for the future Cart quote contract |
 | `CartVersion` | long? | Reserved for future safe Cart consumption |
 | `Status` | enum/string | `pending`, `shipping`, `completed`, `cancelled`, `failed` |
@@ -279,12 +286,12 @@ This can be tightened later without schema change.
 ```mermaid
 erDiagram
     Orders ||--|{ OrderItems : contains
-    Orders ||--o{ OutboxMessages : produces
 
     Orders {
         uniqueidentifier Id PK
         nvarchar Code UK
         uniqueidentifier CustomerId
+        uniqueidentifier OrderCreatedEventId UK
         uniqueidentifier QuoteId UK
         bigint CartVersion
         nvarchar Status
@@ -318,15 +325,6 @@ erDiagram
         datetimeoffset ExpiresAt
     }
 
-    OutboxMessages {
-        uniqueidentifier Id PK
-        nvarchar Type
-        nvarchar Payload
-        int Attempts
-        datetimeoffset OccurredAt
-        datetimeoffset ProcessedAt
-        nvarchar LastError
-    }
 ```
 
 ### Constraints and indexes
@@ -338,7 +336,8 @@ erDiagram
 - Check `TrackingStep BETWEEN 0 AND 5`.
 - Check monetary values and quantities are non-negative/positive as applicable.
 - Unique `IdempotencyRequests.Key`.
-- Index pending `OutboxMessages` by `ProcessedAt` and `OccurredAt`.
+- If the future outbox is introduced, index pending messages by processing and
+  occurrence timestamps.
 
 Delivery address may be stored as owned columns or JSON. The implementation should
 prefer owned columns if query/reporting is required; otherwise JSON is acceptable
@@ -386,6 +385,25 @@ No distributed database transaction or shared schema is introduced.
 - Retry only when Product confirms operation-level idempotency.
 - Restore failures are logged as critical with all recovery identifiers.
 
+### Support client
+
+- `POST /internal/notifications` at the configured Support base URL.
+- Send `x-internal-secret`, `X-Correlation-ID`, and the definitive
+  `OrderCreated` JSON contract.
+- Timeout budget: 2 seconds by default.
+- Run only after SQL commit. Any HTTP error or timeout is logged and does not
+  fail the order or trigger stock compensation.
+- Omit `customer_phone` until the Client service exposes a stable lookup contract.
+
+### Promotion event publisher (contract accepted, implementation pending)
+
+- Durable direct exchange `ganjj.orders`, routing key `order.confirmed`, and
+  Promotion-owned queue `promotion.order-confirmed`.
+- Versioned English JSON contract in `INTEGRATION-CONTRACTS.md` section 9.
+- Publish from a SQL outbox with confirms for at-least-once delivery.
+- Do not enable until the authoritative Cart quote supplies a coupon code that
+  Order persists. Never accept price or coupon data from the public Order body.
+
 ### Failure matrix
 
 | Failure | API outcome | Required action |
@@ -398,6 +416,7 @@ No distributed database transaction or shared schema is introduced.
 | SQL transaction fails | 503/500 | Compensate all decremented items |
 | Compensation fails | 500 + critical operational state | Preserve failed idempotency/recovery data |
 | Duplicate idempotency key | Original result or 409 | Never repeat side effects blindly |
+| Support unavailable/timeout/error | 201 after completed checkout | Log the failed event UUID; no compensation |
 
 ## 13. Authentication and authorization
 
@@ -405,6 +424,8 @@ No distributed database transaction or shared schema is introduced.
 - Validate signature locally with the Authorization public RSA key and accept
   only the RS256 algorithm.
 - Require issuer `ganjj-authorization`, expiration, and `typ == access`.
+- Require a non-empty `email` claim so every created order can produce the
+  mandatory Support notification payload.
 - Read the stable account identifier from the case-sensitive `sub` claim and
   parse it as a non-empty UUID.
 - Map `role == ADMIN` to the `Admin` authorization policy.
@@ -518,7 +539,7 @@ The Order Deployment declares three stateless replicas behind the `order`
 ClusterIP Service on port 8080. SQL Server runs as a single StatefulSet Pod with
 an 8 GiB persistent claim and the `order-sqlserver` Service on port 1433. Both
 are in the `default` namespace so existing group services can use DNS names.
-The Order Pod uses `shopping-cart:3003` and `product-api:8000` as peer addresses;
+The Order Pod uses `shopping-cart:3003`, `product-api:8000`, and `support:8090` as peer addresses;
 these names and ports match the Services published by the current group
 repositories.
 
@@ -553,8 +574,10 @@ Proposed environment variable names:
 | `Authentication__Jwt__PublicKeyPath` | Yes | Mounted Authorization public-key PEM file |
 | `Services__Cart__BaseUrl` | Yes | Cart URL |
 | `Services__Product__BaseUrl` | Yes | Product URL |
+| `Services__Support__BaseUrl` | Yes | Support URL |
 | `Services__Internal__Secret` | Yes initially | Internal HTTP authentication |
 | `Resilience__HttpTimeoutSeconds` | No | Dependency timeout budget |
+| `Resilience__SupportTimeoutSeconds` | No | Post-commit Support timeout, default 2 seconds |
 | `Outbox__PollIntervalSeconds` | No/future | Outbox dispatch interval when enabled |
 
 Secrets are represented in `.env.example` only by placeholders.
@@ -582,7 +605,8 @@ Detailed decisions and their consequences are recorded under `docs/adr`:
 - interim Cart snapshot and target checkout quote;
 - Saga, idempotency, and outbox behavior;
 - container/registry portability;
-- deferred support-microservice decision.
+- post-commit Support notification over internal HTTP (ADR 0009).
+- RabbitMQ `OrderConfirmed` contract with Promotion (ADR 0010).
 - adopted Authorization RS256 contract (ADR 0006).
 - local Kubernetes deployment and no AWS publication (ADR 0007).
 

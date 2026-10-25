@@ -1,6 +1,7 @@
 using Ganjj.Order.Application.Abstractions;
 using Ganjj.Order.Application.Checkout;
 using Ganjj.Order.Domain.Orders;
+using Microsoft.Extensions.Logging.Abstractions;
 using OrderAggregate = Ganjj.Order.Domain.Orders.Order;
 
 namespace Ganjj.Order.Application.UnitTests;
@@ -17,7 +18,8 @@ public sealed class CreateOrderHandlerTests
         var stock = new FakeStockClient();
         var cart = new FakeCartClient(Cart(Item(12, 2, 50m), Item(34, 1, 25m)));
         var handler = new CreateOrderHandler(
-            repository, cart, stock, new FixedTimeProvider(Now), new SequenceIds());
+            repository, cart, stock, new FakeOrderCreatedNotifier(), new FixedTimeProvider(Now),
+            new SequenceIds(), NullLogger<CreateOrderHandler>.Instance);
 
         var result = await handler.HandleAsync(Command(), CancellationToken.None);
 
@@ -27,6 +29,47 @@ public sealed class CreateOrderHandlerTests
         Assert.Equal(2, repository.SavedOrder.Items.Count);
         Assert.Equal(IdempotencyStatus.Completed, repository.Entry?.Status);
         Assert.Equal("token", cart.BearerToken);
+    }
+
+    [Fact]
+    public async Task Handle_WhenOrderIsPersisted_ShouldNotifySupportWithStableOrderCreatedEvent()
+    {
+        var repository = new FakeOrderRepository();
+        var notifier = new FakeOrderCreatedNotifier(() => Assert.NotNull(repository.SavedOrder));
+        var handler = Handler(repository, new FakeStockClient(), Cart(Item(12, 2, 50m)), notifier);
+
+        var result = await handler.HandleAsync(Command() with { CorrelationId = "correlation-123" },
+            CancellationToken.None);
+
+        var notification = Assert.Single(notifier.Notifications);
+        Assert.Equal(repository.SavedOrder!.OrderCreatedEventId, notification.EventId);
+        Assert.Equal(result.Id, notification.OrderId);
+        Assert.Equal(result.Code, notification.OrderCode);
+        Assert.Equal(CustomerId, notification.CustomerId);
+        Assert.Equal("customer@example.com", notification.CustomerEmail);
+        Assert.Equal(100m, notification.Total);
+        Assert.Equal("BRL", notification.Currency);
+        Assert.Equal("correlation-123", notification.CorrelationId);
+        Assert.Equal(Now, notification.OccurredAt);
+    }
+
+    [Fact]
+    public async Task Handle_WhenSupportNotificationFails_ShouldKeepCompletedOrderAndNotCompensateStock()
+    {
+        var repository = new FakeOrderRepository();
+        var stock = new FakeStockClient();
+        var notifier = new FakeOrderCreatedNotifier
+        {
+            Failure = new HttpRequestException("Support is unavailable.")
+        };
+        var handler = Handler(repository, stock, Cart(Item(12, 1, 50m)), notifier);
+
+        var result = await handler.HandleAsync(Command(), CancellationToken.None);
+
+        Assert.Equal(repository.SavedOrder!.Id, result.Id);
+        Assert.Equal(IdempotencyStatus.Completed, repository.Entry?.Status);
+        Assert.Empty(stock.Restored);
+        Assert.Single(notifier.Notifications);
     }
 
     [Fact]
@@ -67,7 +110,9 @@ public sealed class CreateOrderHandlerTests
         repository.SeedCompleted("checkout-key", CreateOrderHandler.ComputeRequestHash(Command()), original);
         var cart = new FakeCartClient(Cart(Item(99, 1, 999m)));
         var stock = new FakeStockClient();
-        var handler = new CreateOrderHandler(repository, cart, stock, new FixedTimeProvider(Now), new SequenceIds());
+        var handler = new CreateOrderHandler(
+            repository, cart, stock, new FakeOrderCreatedNotifier(), new FixedTimeProvider(Now),
+            new SequenceIds(), NullLogger<CreateOrderHandler>.Instance);
 
         var result = await handler.HandleAsync(Command(), CancellationToken.None);
 
@@ -80,8 +125,10 @@ public sealed class CreateOrderHandlerTests
     private static CreateOrderHandler Handler(
         FakeOrderRepository repository,
         FakeStockClient stock,
-        CartSnapshot cart) =>
-        new(repository, new FakeCartClient(cart), stock, new FixedTimeProvider(Now), new SequenceIds());
+        CartSnapshot cart,
+        FakeOrderCreatedNotifier? notifier = null) =>
+        new(repository, new FakeCartClient(cart), stock, notifier ?? new FakeOrderCreatedNotifier(),
+            new FixedTimeProvider(Now), new SequenceIds(), NullLogger<CreateOrderHandler>.Instance);
 
     private static CreateOrderCommand Command() => new(
         CustomerId,
@@ -145,6 +192,19 @@ public sealed class CreateOrderHandlerTests
     }
 
     private sealed record StockCall(long ProductId, int Quantity, string OperationId);
+
+    private sealed class FakeOrderCreatedNotifier(Action? beforeNotify = null) : IOrderCreatedNotifier
+    {
+        public Exception? Failure { get; init; }
+        public List<OrderCreatedNotification> Notifications { get; } = [];
+
+        public Task NotifyAsync(OrderCreatedNotification notification, CancellationToken cancellationToken)
+        {
+            beforeNotify?.Invoke();
+            Notifications.Add(notification);
+            return Failure is null ? Task.CompletedTask : Task.FromException(Failure);
+        }
+    }
 
     private sealed class FakeOrderRepository : IOrderRepository
     {

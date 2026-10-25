@@ -67,10 +67,13 @@ public static class AuthenticationExtensions
                     {
                         var type = context.Principal?.FindFirst("typ")?.Value;
                         var subject = context.Principal?.FindFirst("sub")?.Value;
+                        var email = context.Principal?.FindFirst("email")?.Value;
                         if (!string.Equals(type, "access", StringComparison.Ordinal) ||
-                            !Guid.TryParse(subject, out var accountId) || accountId == Guid.Empty)
+                            !Guid.TryParse(subject, out var accountId) || accountId == Guid.Empty ||
+                            string.IsNullOrWhiteSpace(email))
                         {
-                            context.Fail("The token must be an access token with a valid account id in sub.");
+                            context.Fail(
+                                "The token must be an access token with valid sub and email claims.");
                         }
 
                         return Task.CompletedTask;

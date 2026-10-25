@@ -85,6 +85,19 @@ public sealed class JwtAuthenticationTests : IDisposable
     }
 
     [Fact]
+    public async Task ProtectedRoute_WhenEmailClaimIsMissing_ShouldReturnUnauthorized()
+    {
+        using var factory = Factory();
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+            "Bearer", Token(includeEmail: false));
+
+        var response = await client.GetAsync("/api/pedidos/meus");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
     public async Task ProtectedRoute_WhenTokenIsExpired_ShouldReturnUnauthorized()
     {
         using var factory = Factory();
@@ -157,20 +170,26 @@ public sealed class JwtAuthenticationTests : IDisposable
         string type = "access",
         string issuer = "ganjj-authorization",
         string subject = "11111111-1111-1111-1111-111111111111",
+        bool includeEmail = true,
         DateTime? notBefore = null,
         DateTime? expires = null,
         SigningCredentials? credentials = null)
     {
         credentials ??= new SigningCredentials(new RsaSecurityKey(_rsa), SecurityAlgorithms.RsaSha256);
+        var claims = new List<Claim>
+        {
+            new(JwtRegisteredClaimNames.Sub, subject),
+            new("role", role),
+            new("typ", type)
+        };
+        if (includeEmail)
+        {
+            claims.Add(new Claim(JwtRegisteredClaimNames.Email, "customer@ganjj.test"));
+        }
+
         var token = new JwtSecurityToken(
             issuer,
-            claims:
-            [
-                new Claim(JwtRegisteredClaimNames.Sub, subject),
-                new Claim(JwtRegisteredClaimNames.Email, "customer@ganjj.test"),
-                new Claim("role", role),
-                new Claim("typ", type)
-            ],
+            claims: claims,
             notBefore: notBefore ?? DateTime.UtcNow.AddMinutes(-1),
             expires: expires ?? DateTime.UtcNow.AddMinutes(10),
             signingCredentials: credentials);

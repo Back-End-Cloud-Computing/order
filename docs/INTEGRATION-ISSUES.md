@@ -23,7 +23,8 @@ resolvida.
 | INT-005 | Tipos dos identificadores | Todos os serviços | Pendente | Não |
 | INT-006 | Autenticação interna | Gateway e serviços | Pendente | Não |
 | INT-007 | Convenção de nomes e rotas | Todos os serviços | Parcialmente decidido | Não |
-| INT-008 | Microsserviço de suporte | Todo o grupo | Pendente | Não para o Order neste momento |
+| INT-008 | Microsserviço de suporte | Eduardo / Order | Resolvido para N2 | Não |
+| PROMO-001 | Evento de pedido confirmado | Order e Promotion | Contrato resolvido; código pendente | Sim para RabbitMQ |
 
 ## 3. Pendências detalhadas
 
@@ -146,14 +147,34 @@ contratos internos são padronizados.
 
 ### INT-008 — Microsserviço de suporte
 
-**Situação atual:** o grupo ainda escolherá qual será o microsserviço de suporte
-exigido pela rubrica.
+**Situação atual:** o serviço Support do Eduardo foi escolhido. Para a N2, ele
+recebe o payload `OrderCreated` por HTTP interno e elimina duplicidade pelo
+`event_id`.
 
-**Impacto no Order:** nenhum neste momento. Caso o serviço escolhido consuma
-eventos de pedido, será necessário definir transporte, payload, retry e política
-de dados pessoais.
+**Impacto no Order:** após confirmar a transação, o Order chama
+`POST http://support:8090/internal/notifications` com o segredo compartilhado.
+O UUID do evento fica salvo com o pedido; falha ou demora do Support gera log,
+mas não desfaz o pedido. O telefone fica ausente até existir contrato estável do
+Client. RabbitMQ poderá substituir o transporte mantendo o mesmo payload.
 
-**Responsável:** todo o grupo.
+**Responsável:** Eduardo (Support) e Rodrigo (integração do Order).
+
+### PROMO-001 — Evento `OrderConfirmed` para o Promotion
+
+**Situação atual:** contrato fechado nos dois repositórios em 25/10/2026. A
+exchange durável é `ganjj.orders` (direct), a routing key é `order.confirmed` e
+a fila do Promotion é `promotion.order-confirmed`. O payload versionado usa
+nomes em inglês e contém `event_id`, `order_id`, `coupon_code`, itens e
+`correlation_id`. A idempotência do consumidor é por `order_id`.
+
+**Ainda pendente:** o Order atual consome o contrato antigo do Cart e não recebe
+nem salva o cupom. O publisher com outbox só pode ser habilitado depois que a
+cotação autoritativa do Cart fornecer `coupon_code`. Do outro lado, o Promotion
+ainda precisa implementar o consumidor e o registro idempotente. O Order não
+deve aceitar cupom diretamente no JSON público para contornar esse bloqueio.
+
+**Responsáveis:** Rodrigo Alves (publisher/outbox) e Lucas Stopinski
+(consumer/idempotência).
 
 ## 4. Checklist para a reunião do grupo
 
@@ -165,4 +186,6 @@ de dados pessoais.
 - [ ] Padronizar os tipos de IDs externos.
 - [ ] Padronizar autenticação e headers internos.
 - [ ] Decidir a estratégia de nomes das rotas públicas e internas.
-- [ ] Escolher o microsserviço de suporte.
+- [x] Escolher o microsserviço de suporte e congelar o contrato HTTP da N2.
+- [x] Fechar o contrato RabbitMQ `OrderConfirmed` com o Promotion.
+- [ ] Implementar e testar publisher/outbox e consumer idempotente.

@@ -46,6 +46,8 @@ spec:
               value: http://shopping-cart:3003
             - name: Services__Product__BaseUrl
               value: http://product-api:8000
+            - name: Services__Support__BaseUrl
+              value: http://support:8090
             - name: Services__Internal__Secret
               valueFrom:
                 secretKeyRef:
