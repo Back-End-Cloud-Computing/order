@@ -4,20 +4,38 @@ using System.Text.Json.Serialization;
 namespace Ganjj.Order.Api.Contracts;
 
 public sealed record CreateOrderRequest(
-    [property: Required, JsonPropertyName("endereco_entrega")] DeliveryAddressRequest DeliveryAddress);
+    [Required]
+    [property: JsonPropertyName("endereco_entrega")]
+    DeliveryAddressRequest DeliveryAddress);
 
 public sealed record DeliveryAddressRequest(
-    [property: Required, JsonPropertyName("rua")] string Street,
-    [property: Required, JsonPropertyName("numero")] string Number,
+    [Required]
+    [property: JsonPropertyName("rua")]
+    string Street,
+    [Required]
+    [property: JsonPropertyName("numero")]
+    string Number,
     [property: JsonPropertyName("complemento")] string? Complement,
-    [property: Required, JsonPropertyName("bairro")] string District,
-    [property: Required, JsonPropertyName("cidade")] string City,
-    [property: Required, JsonPropertyName("estado")] string State,
-    [property: Required, JsonPropertyName("cep")] string PostalCode,
-    [property: Required, JsonPropertyName("pais")] string Country);
+    [Required]
+    [property: JsonPropertyName("bairro")]
+    string District,
+    [Required]
+    [property: JsonPropertyName("cidade")]
+    string City,
+    [Required]
+    [property: JsonPropertyName("estado")]
+    string State,
+    [Required]
+    [property: JsonPropertyName("cep")]
+    string PostalCode,
+    [Required]
+    [property: JsonPropertyName("pais")]
+    string Country);
 
 public sealed record UpdateTrackingRequest(
-    [property: Range(0, 5), JsonPropertyName("passo")] int Step,
+    [Range(0, 5)]
+    [property: JsonPropertyName("passo")]
+    int Step,
     [property: JsonPropertyName("numero_rastreio")] string? TrackingNumber);
 
 public sealed record CreateOrderResponse(
