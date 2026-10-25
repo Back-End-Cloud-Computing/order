@@ -35,10 +35,12 @@ jobs:
         run: |
           jq empty observability/grafana/order-dashboard.json
           docker compose -f observability/docker-compose.yml config --quiet
-      - name: Validar sintaxe do bootstrap Kubernetes
+      - name: Validar sintaxe dos scripts PowerShell
         shell: pwsh
         run: |
-          [void][scriptblock]::Create((Get-Content scripts/Start-Kubernetes.ps1 -Raw))
+          Get-ChildItem scripts -Filter *.ps1 | ForEach-Object {
+            [void][scriptblock]::Create((Get-Content $_.FullName -Raw))
+          }
       - run: docker build --tag ganjj-order:${{ github.sha }} .
 
   publish:
