@@ -156,6 +156,7 @@ manually. Read-only EF Core queries should project directly to response DTOs wit
 | GET | `/api/pedidos/{id}` | Owner or admin | Get one order snapshot |
 | GET | `/api/pedidos/admin/todos` | Admin | List all orders |
 | PUT | `/api/pedidos/{id}/passo` | Admin | Update tracking step |
+| GET | `/health` | Anonymous | Basic service health |
 | GET | `/health/live` | Anonymous | Process liveness |
 | GET | `/health/ready` | Anonymous | SQL Server readiness |
 | GET | `/instance` | Anonymous | Identify the Pod serving a request |
@@ -456,6 +457,7 @@ OpenTelemetry export is a later cloud milestone.
 
 ### Health endpoints
 
+- `/health`: stable basic health path shared by the GANJJ services.
 - `/health/live`: process can respond; no dependency checks.
 - `/health/ready`: verifies SQL Server connectivity with a lightweight check.
 - External Product/Cart outages should not make every API replica unready unless
@@ -472,20 +474,18 @@ The Dockerfile is multi-stage:
 2. `mcr.microsoft.com/dotnet/aspnet:10.0` contains only runtime artifacts.
 3. Runtime listens on container port `8080`.
 4. Runtime uses a non-root user.
-5. The local Kubernetes script tags the image `ganjj-order:local` and loads it
-   directly into Minikube.
+5. CI publishes the image to GHCR for `linux/amd64` and `linux/arm64`.
 
-If registry publication is later required, use explicit version/commit tags,
-for example:
+The pipeline publishes a moving demonstration tag and an immutable commit tag:
 
 ```text
-backendcloud/order-service:1.0.0
-backendcloud/order-service:sha-<short-commit>
+ghcr.io/back-end-cloud-computing/order:latest
+ghcr.io/back-end-cloud-computing/order:sha-<commit>
 ```
 
-The local `ganjj-order:local` tag is deliberately mutable and the Deployment
-uses `imagePullPolicy: Never`; a registry-backed deployment should use an
-immutable version or digest instead.
+The Kubernetes manifest pulls `latest` for the classroom demonstration. The
+bootstrap script can explicitly build and select `ganjj-order:local` with
+`-UseLocalImage` while developing unpublished changes.
 
 ### Local containers
 
@@ -509,17 +509,18 @@ Inside the API container, the database hostname is `sqlserver`, never `localhost
 ## 17. Local Kubernetes deployment
 
 The current runtime target is Minikube on Docker Desktop. No AWS resources are
-created. `scripts/Start-Kubernetes.ps1` builds `ganjj-order:local`, loads it
-into Minikube, configures the JWT public key and local Secret, then applies the
-manifests in `k8s/`. A registry is not required to present this local deployment.
+created. `scripts/Start-Kubernetes.ps1` configures the JWT public key and local
+Secret, then applies the manifests in `k8s/`. By default Minikube pulls the
+public multi-architecture image from GHCR; `-UseLocalImage` is the explicit
+fallback for unpublished development changes.
 
 The Order Deployment declares three stateless replicas behind the `order`
 ClusterIP Service on port 8080. SQL Server runs as a single StatefulSet Pod with
 an 8 GiB persistent claim and the `order-sqlserver` Service on port 1433. Both
 are in the `default` namespace so existing group services can use DNS names.
-The Order Pod uses `shopping-cart:3003` and `product:8000` as peer addresses;
-those service names must be reconciled with the other repositories before an
-end-to-end checkout demonstration.
+The Order Pod uses `shopping-cart:3003` and `product-api:8000` as peer addresses;
+these names and ports match the Services published by the current group
+repositories.
 
 Liveness (`/health/live`) checks the API process; readiness (`/health/ready`)
 checks SQL connectivity. SQL Server's readiness probe also runs `SELECT 1`

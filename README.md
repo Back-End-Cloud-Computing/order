@@ -29,11 +29,16 @@ e espaço para o volume de 8 GiB do SQL Server.
 
 O script inicia o cluster local se necessário, cria um Secret com senha forte
 gerada localmente (ou usa `SQL_SERVER_PASSWORD`), monta a chave pública como
-ConfigMap, constrói/carrega a imagem e espera o SQL Server e as três réplicas
-do Order ficarem prontos. Ao rodar novamente, ele preserva a senha do banco
-persistente; `INTERNAL_SERVICE_SECRET` pode ser alterado para combinar com o
-grupo. Nenhum valor secreto é versionado no Git. Se o cluster estiver pronto e
-a imagem já tiver sido construída, use `-SkipBuild`.
+ConfigMap, baixa a imagem pública multi-arquitetura do GHCR e espera o SQL Server
+e as três réplicas do Order ficarem prontos. Ao rodar novamente, ele preserva a
+senha do banco persistente; `INTERNAL_SERVICE_SECRET` pode ser alterado para
+combinar com o grupo. Nenhum valor secreto é versionado no Git.
+
+Para testar alterações ainda não publicadas, use o fallback local:
+
+```powershell
+.\scripts\Start-Kubernetes.ps1 -UseLocalImage
+```
 
 ```powershell
 kubectl -n default get pods,deployments,statefulsets,services -l app.kubernetes.io/part-of=ganjj
@@ -41,7 +46,8 @@ kubectl -n default port-forward service/order 3004:8080
 ```
 
 Em outro terminal, acesse `http://localhost:3004/scalar/v1`,
-`http://localhost:3004/health/ready` e `http://localhost:3004/instance`.
+`http://localhost:3004/health`, `http://localhost:3004/health/ready` e
+`http://localhost:3004/instance`.
 O endpoint `/instance` identifica o Pod que atendeu a requisição.
 
 Para demonstrar o DNS interno e a autorrecuperação:
@@ -62,7 +68,7 @@ réplicas.
 
 `order` e `order-sqlserver` são Services internos (`ClusterIP`) no namespace
 `default`. As URLs de Cart e Product no manifesto pressupõem Services
-`shopping-cart:3003` e `product:8000` nesse mesmo namespace; sem esses serviços,
+`shopping-cart:3003` e `product-api:8000` nesse mesmo namespace; sem esses serviços,
 health/Scalar funcionam, mas o checkout integrado não. Esta implantação é
 exclusivamente local, sem AWS. O volume do SQL Server é persistente; não apague
 o PVC para reiniciar a apresentação.
@@ -80,8 +86,9 @@ docker compose up --build
 ```
 
 A API estará em `http://localhost:3004`, a documentação Scalar em
-`http://localhost:3004/scalar/v1` e os health checks em `/health/live` e
-`/health/ready`. Ajuste os segredos do `.env` antes de compartilhar ou implantar.
+`http://localhost:3004/scalar/v1` e os health checks em `/health`,
+`/health/live` e `/health/ready`. Ajuste os segredos do `.env` antes de
+compartilhar ou implantar.
 
 ## Executar e testar localmente
 

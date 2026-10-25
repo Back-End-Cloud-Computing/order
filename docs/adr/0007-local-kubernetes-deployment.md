@@ -18,9 +18,9 @@ deployment manifests until the runtime was chosen; that deferral is now closed.
   Service named `order`.
 - Run SQL Server as a single-replica StatefulSet with an 8 GiB persistent claim
   and a Service named `order-sqlserver`; database replicas are not implied.
-- Build `ganjj-order:local` and load it into Minikube without requiring a cloud
-  registry. Configure peer URLs using Service DNS names in the shared `default`
-  namespace.
+- Pull the published image described by ADR 0008 by default, with an explicit
+  local-build fallback for development. Configure peer URLs using Service DNS
+  names in the shared `default` namespace.
 - Supply SQL credentials and the internal-service secret through a Kubernetes
   Secret. Mount only Authorization's public PEM through a ConfigMap.
 - Permit runtime EF Core 10 migrations for this local course demo. EF Core's
@@ -37,6 +37,5 @@ deployment manifests until the runtime was chosen; that deferral is now closed.
   Cart/Product integration contracts and running peers.
 - The local SQL Server PVC retains data across Pod replacement. Deleting the
   cluster or PVC is a separate, explicit data-loss operation.
-- If the professor later requires Docker Hub publication or an Ingress
-  controller, those become separate changes rather than a prerequisite for the
-  local Kubernetes demonstration.
+- Image publication is independent from AWS and exists only to make the local
+  Kubernetes demonstration reproducible across the group's machines.

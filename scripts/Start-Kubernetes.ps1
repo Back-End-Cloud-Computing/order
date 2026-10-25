@@ -1,5 +1,5 @@
 param(
-    [switch]$SkipBuild
+    [switch]$UseLocalImage
 )
 
 $ErrorActionPreference = 'Stop'
@@ -125,14 +125,14 @@ $configMap = @{
 $configMap | ConvertTo-Json -Depth 8 -Compress | & kubectl apply --server-side --field-manager=order-local-bootstrap -f -
 if ($LASTEXITCODE -ne 0) { throw 'Falha ao configurar a chave publica JWT.' }
 
-if (-not $SkipBuild) {
+if ($UseLocalImage) {
     & docker build -t ganjj-order:local $root
     if ($LASTEXITCODE -ne 0) { throw 'Falha ao construir a imagem ganjj-order:local.' }
-}
 
-if ($context -eq 'minikube') {
-    & $minikubeCommand.Source image load ganjj-order:local
-    if ($LASTEXITCODE -ne 0) { throw 'Falha ao carregar a imagem no Minikube.' }
+    if ($context -eq 'minikube') {
+        & $minikubeCommand.Source image load ganjj-order:local
+        if ($LASTEXITCODE -ne 0) { throw 'Falha ao carregar a imagem no Minikube.' }
+    }
 }
 
 & kubectl -n default apply -f $sqlManifest
@@ -142,6 +142,11 @@ if ($LASTEXITCODE -ne 0) { throw 'SQL Server nao ficou pronto; consulte kubectl 
 
 & kubectl -n default apply -f $orderManifest
 if ($LASTEXITCODE -ne 0) { throw 'Falha ao aplicar o Order.' }
+if ($UseLocalImage) {
+    $localImagePatch = '{"spec":{"template":{"spec":{"containers":[{"name":"order","image":"ganjj-order:local","imagePullPolicy":"Never"}]}}}}'
+    & kubectl -n default patch deployment order --type=strategic --patch $localImagePatch
+    if ($LASTEXITCODE -ne 0) { throw 'Falha ao configurar a imagem local do Order.' }
+}
 & kubectl -n default rollout status deployment/order --timeout=360s
 if ($LASTEXITCODE -ne 0) { throw 'Order nao ficou pronto; consulte kubectl logs deployment/order.' }
 

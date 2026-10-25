@@ -25,8 +25,8 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: order
-          image: ganjj-order:local
-          imagePullPolicy: Never
+          image: ghcr.io/back-end-cloud-computing/order:latest
+          imagePullPolicy: Always
           ports:
             - name: http
               containerPort: 8080
@@ -45,7 +45,7 @@ spec:
             - name: Services__Cart__BaseUrl
               value: http://shopping-cart:3003
             - name: Services__Product__BaseUrl
-              value: http://product:8000
+              value: http://product-api:8000
             - name: Services__Internal__Secret
               valueFrom:
                 secretKeyRef:
