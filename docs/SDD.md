@@ -478,6 +478,13 @@ count, responses in progress, status totals, and request-duration histograms.
 The Order Pod carries Prometheus scrape annotations for port 8080. The endpoint
 has no Order Ingress and is not routed by the API Gateway.
 
+`observability/grafana/order-dashboard.json` is the importable dashboard for
+throughput, HTTP 5xx rate, response codes and p50/p95/p99 latency. Its datasource
+UID is the stable `prometheus` value supplied by the local provisioning files.
+The accompanying Compose stack is only a presentation aid: Prometheus reaches a
+temporary Order port-forward, while Grafana provisions the datasource and
+dashboard without manual query edits.
+
 Console/CloudWatch logging is sufficient for the first course milestone;
 OpenTelemetry export is a later cloud milestone.
 

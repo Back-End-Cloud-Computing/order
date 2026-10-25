@@ -13,6 +13,8 @@ reserva estoque no serviço de produtos e mantém um snapshot imutável dos iten
 - [Pendências de integração do grupo](docs/INTEGRATION-ISSUES.md) - decisões em aberto, em português (PT-BR).
 - [Contrato OpenAPI](docs/openapi/order-service.v1.yaml) - API pública proposta.
 - [Plano de entrega](docs/DELIVERY-PLAN.md) - backlog e ordem de implementação.
+- [Roteiro da apresentação](docs/PRESENTATION-RUNBOOK.md) - demonstração de
+  Kubernetes e observabilidade.
 - [ADRs](docs/adr/) - decisões arquiteturais registradas.
 
 ## Executar com Kubernetes local
@@ -55,6 +57,10 @@ O endpoint `/instance` identifica o Pod que atendeu a requisição.
 Service interno ou pelo `port-forward`; o Gateway não encaminha essa rota.
 O chart não cria Ingress: `api.ganjj.local` continua pertencendo exclusivamente
 ao API Gateway.
+
+O dashboard Grafana versionado e uma stack local de visualização estão em
+`observability/`; consulte o roteiro da apresentação para os comandos e a
+captura validada.
 
 Para demonstrar o DNS interno e a autorrecuperação:
 
