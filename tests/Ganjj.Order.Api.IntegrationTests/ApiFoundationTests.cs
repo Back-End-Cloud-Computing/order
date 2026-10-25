@@ -47,6 +47,20 @@ public sealed class ApiFoundationTests : IDisposable
     }
 
     [Fact]
+    public async Task Metrics_WhenApiReceivesRequests_ShouldExposePrometheusRequestAndLatencySeries()
+    {
+        await _client.GetAsync("/health");
+
+        var response = await _client.GetAsync("/metrics");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("text/plain", response.Content.Headers.ContentType?.MediaType);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Contains("http_requests_received_total", body);
+        Assert.Contains("http_request_duration_seconds", body);
+    }
+
+    [Fact]
     public async Task Instance_WhenApiIsRunning_ShouldIdentifyTheServingProcess()
     {
         var response = await _client.GetAsync("/instance");

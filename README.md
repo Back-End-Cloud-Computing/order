@@ -49,6 +49,8 @@ Em outro terminal, acesse `http://localhost:3004/scalar/v1`,
 `http://localhost:3004/health`, `http://localhost:3004/health/ready` e
 `http://localhost:3004/instance`.
 O endpoint `/instance` identifica o Pod que atendeu a requisição.
+`GET /metrics` expõe contadores e latência no formato Prometheus apenas pelo
+Service interno ou pelo `port-forward`; o Gateway não encaminha essa rota.
 
 Para demonstrar o DNS interno e a autorrecuperação:
 
@@ -92,7 +94,7 @@ docker compose up --build
 
 A API estará em `http://localhost:3004`, a documentação Scalar em
 `http://localhost:3004/scalar/v1` e os health checks em `/health`,
-`/health/live` e `/health/ready`. Ajuste os segredos do `.env` antes de
+`/health/live` e `/health/ready`. As métricas ficam em `/metrics`. Ajuste os segredos do `.env` antes de
 compartilhar ou implantar.
 
 ## Executar e testar localmente

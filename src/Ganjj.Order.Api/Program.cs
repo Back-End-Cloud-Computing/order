@@ -7,6 +7,7 @@ using Ganjj.Order.Application.Orders;
 using Ganjj.Order.Infrastructure;
 using Ganjj.Order.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Prometheus;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -30,6 +31,7 @@ if (app.Configuration.GetValue<bool>("Database:ApplyMigrations"))
 
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseExceptionHandler();
+app.UseHttpMetrics();
 
 var apiDocsEnabled = app.Environment.IsDevelopment() ||
                      app.Configuration.GetValue<bool>("ApiDocs:Enabled");
@@ -45,6 +47,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapMetrics().AllowAnonymous();
 app.MapGet("/health", () => Results.Ok(new { status = "healthy" }))
     .AllowAnonymous()
     .WithName("Health")

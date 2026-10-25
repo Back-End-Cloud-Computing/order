@@ -20,6 +20,10 @@ spec:
       labels:
         app.kubernetes.io/name: order
         app.kubernetes.io/part-of: ganjj
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: /metrics
     spec:
       automountServiceAccountToken: false
       terminationGracePeriodSeconds: 30

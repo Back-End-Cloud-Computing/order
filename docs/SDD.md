@@ -473,6 +473,11 @@ The base design leaves an OpenTelemetry-compatible extension point for:
 - compensation attempt/failure counts;
 - pending outbox message count.
 
+The current API exposes Prometheus text metrics at `/metrics`, including request
+count, responses in progress, status totals, and request-duration histograms.
+The Order Pod carries Prometheus scrape annotations for port 8080. The endpoint
+has no Order Ingress and is not routed by the API Gateway.
+
 Console/CloudWatch logging is sufficient for the first course milestone;
 OpenTelemetry export is a later cloud milestone.
 
