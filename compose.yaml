@@ -25,7 +25,7 @@ services:
       Authentication__Jwt__PublicKeyPath: /app/keys/public.pem
       Authentication__Jwt__Issuer: ${JWT_ISSUER:-ganjj-authorization}
       Services__Cart__BaseUrl: ${CART_SERVICE_URL:-http://host.docker.internal:3003}
-      Services__Product__BaseUrl: ${PRODUCT_SERVICE_URL:-http://host.docker.internal:3002}
+      Services__Product__BaseUrl: ${PRODUCT_SERVICE_URL:-http://host.docker.internal:8000}
       Services__Internal__Secret: ${INTERNAL_SERVICE_SECRET:-ganjj-compose-internal-secret-change-me}
       Database__ApplyMigrations: "true"
       ApiDocs__Enabled: "true"

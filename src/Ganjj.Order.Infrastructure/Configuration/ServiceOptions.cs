@@ -9,7 +9,7 @@ public sealed class CartServiceOptions
 public sealed class ProductServiceOptions
 {
     public const string SectionName = "Services:Product";
-    public string BaseUrl { get; init; } = "http://localhost:3002";
+    public string BaseUrl { get; init; } = "http://localhost:8000";
 }
 
 public sealed class InternalServiceOptions

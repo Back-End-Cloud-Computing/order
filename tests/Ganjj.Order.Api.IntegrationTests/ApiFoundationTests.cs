@@ -37,6 +37,16 @@ public sealed class ApiFoundationTests : IDisposable
     }
 
     [Fact]
+    public async Task Health_WhenApiIsRunning_ShouldReturnHealthy()
+    {
+        var response = await _client.GetAsync("/health");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("healthy", document.RootElement.GetProperty("status").GetString());
+    }
+
+    [Fact]
     public async Task Instance_WhenApiIsRunning_ShouldIdentifyTheServingProcess()
     {
         var response = await _client.GetAsync("/instance");
