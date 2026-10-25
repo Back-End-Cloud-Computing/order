@@ -33,16 +33,31 @@ e espaço para o volume de 8 GiB do SQL Server.
 O script inicia o cluster local se necessário, cria um Secret com senha forte
 gerada localmente (ou usa `SQL_SERVER_PASSWORD`), monta a chave pública como
 ConfigMap, instala/atualiza o chart `helm/order`, baixa a imagem pública
-multi-arquitetura do GHCR e espera o SQL Server
-e as três réplicas do Order ficarem prontos. Ao rodar novamente, ele preserva a
-senha do banco persistente; `INTERNAL_SERVICE_SECRET` pode ser alterado para
+multi-arquitetura do GHCR e espera o SQL Server e as três réplicas do Order
+ficarem prontos. Ao final, ele executa automaticamente o smoke test de réplicas,
+DNS interno, readiness, métricas e `/instance`. Ao rodar novamente, ele preserva
+a senha do banco persistente; `INTERNAL_SERVICE_SECRET` pode ser alterado para
 combinar com o grupo. Nenhum valor secreto é versionado no Git.
+
+Se o cluster contiver recursos antigos do Order que não pertencem ao release
+Helm `order`, o bootstrap para antes da instalação e lista os conflitos. Ele não
+apaga nem adota recursos existentes silenciosamente. Remova ou migre os recursos
+legados conscientemente antes de tentar novamente.
 
 Para testar alterações ainda não publicadas, use o fallback local:
 
 ```powershell
 .\scripts\Start-Kubernetes.ps1 -UseLocalImage
 ```
+
+Para repetir somente a validação depois que o ambiente já estiver instalado:
+
+```powershell
+.\scripts\Test-Kubernetes.ps1
+```
+
+Use `-SkipSmokeTest` no bootstrap apenas quando quiser diagnosticar a instalação
+manualmente.
 
 ```powershell
 kubectl -n default get pods,deployments,statefulsets,services -l app.kubernetes.io/part-of=ganjj

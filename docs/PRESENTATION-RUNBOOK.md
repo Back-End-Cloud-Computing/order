@@ -3,11 +3,13 @@
 ## 1. Kubernetes e Helm
 
 1. Coloque a chave pública do Authorization em `public.pem` na raiz do projeto.
-2. Execute `./scripts/Start-Kubernetes.ps1`.
-3. Mostre `helm list` e `kubectl get pods,deployments,statefulsets,services`.
+2. Execute `./scripts/Start-Kubernetes.ps1`; o smoke test será executado ao final.
+3. Mostre a mensagem de aprovação do smoke, `helm list` e
+   `kubectl get pods,deployments,statefulsets,services`.
 4. Destaque as três réplicas do Order, o SQL Server em StatefulSet e os
    Services internos `ClusterIP`.
-5. Execute o teste DNS e a exclusão controlada de um Pod descritos no README.
+5. Se quiser repetir a prova de DNS, execute `./scripts/Test-Kubernetes.ps1`;
+   depois faça a exclusão controlada de um Pod descrita no README.
 6. Explique que o Order não possui Ingress: o único host externo é
    `api.ganjj.local`, controlado pelo API Gateway.
 
