@@ -14,7 +14,10 @@ crie:
   Authorization.
 
 O script `scripts/Start-Kubernetes.ps1` já cria esses dois recursos com valores
-locais seguros. Para criar apenas a ConfigMap manualmente:
+locais seguros, instala o release e chama `scripts/Test-Kubernetes.ps1` para
+validar o ambiente. Antes da instalação, ele também recusa recursos legados com
+os mesmos nomes que ainda não pertencem ao release Helm, evitando adoção ou
+remoção silenciosa. Para criar apenas a ConfigMap manualmente:
 
 ```powershell
 kubectl create configmap order-jwt-public-key --from-file=public.pem=./public.pem
@@ -28,6 +31,7 @@ helm template order helm/order
 helm upgrade --install order helm/order
 kubectl rollout status statefulset/order-sqlserver --timeout=600s
 kubectl rollout status deployment/order --timeout=360s
+.\scripts\Test-Kubernetes.ps1
 ```
 
 Valores comuns:

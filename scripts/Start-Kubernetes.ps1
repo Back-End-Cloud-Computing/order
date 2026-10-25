@@ -1,5 +1,6 @@
 param(
-    [switch]$UseLocalImage
+    [switch]$UseLocalImage,
+    [switch]$SkipSmokeTest
 )
 
 $ErrorActionPreference = 'Stop'
@@ -53,6 +54,29 @@ if ($context -eq 'minikube') {
 
 & kubectl cluster-info | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'O cluster Kubernetes local nao esta acessivel.' }
+
+$releaseNames = & $helmCommand.Source list --namespace default --short --filter '^order$'
+if ($LASTEXITCODE -ne 0) { throw 'Falha ao consultar os releases Helm no namespace default.' }
+if ('order' -notin @($releaseNames)) {
+    $legacyResources = @()
+    foreach ($resource in @(
+        'deployment/order',
+        'statefulset/order-sqlserver',
+        'service/order',
+        'service/order-sqlserver'
+    )) {
+        $existingResource = & kubectl -n default get $resource -o name --ignore-not-found 2>$null
+        if ($LASTEXITCODE -ne 0) { throw "Falha ao consultar o recurso Kubernetes $resource." }
+        if (-not [string]::IsNullOrWhiteSpace($existingResource)) {
+            $legacyResources += $existingResource
+        }
+    }
+
+    if ($legacyResources.Count -gt 0) {
+        $resourceList = $legacyResources -join ', '
+        throw "Existem recursos do Order sem o release Helm 'order': $resourceList. O script nao apaga nem adota recursos automaticamente. Remova ou migre esses recursos legados de forma consciente e execute novamente."
+    }
+}
 
 $existingSecretJson = & kubectl -n default get secret order-secrets -o json --ignore-not-found
 if ($LASTEXITCODE -ne 0) { throw 'Falha ao consultar o Secret order-secrets.' }
@@ -163,4 +187,10 @@ if ($LASTEXITCODE -ne 0) { throw 'Order nao ficou pronto; consulte kubectl logs 
 
 & kubectl -n default get deployment/order statefulset/order-sqlserver service/order service/order-sqlserver
 if ($LASTEXITCODE -ne 0) { throw 'Falha ao consultar os recursos Kubernetes criados.' }
+
+if (-not $SkipSmokeTest) {
+    $smokeScript = Join-Path $PSScriptRoot 'Test-Kubernetes.ps1'
+    & $smokeScript
+}
+
 Write-Host 'Order pronto. Em outro terminal: kubectl -n default port-forward service/order 3004:8080'
