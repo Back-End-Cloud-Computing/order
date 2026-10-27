@@ -37,7 +37,7 @@ public sealed class SqlServerPersistenceTests : IAsyncLifetime
             "Customer",
             "customer@ganjj.test",
             new DeliveryAddress("Cloud Street", "10", null, "Center", "Curitiba", "PR", "80000-000", "BR"),
-            [OrderItem.Create(Guid.NewGuid(), orderId, 7, "Cloud Product", "M", null, 2, 29.90m, 0m, null, null)],
+            [OrderItem.Create(Guid.NewGuid(), orderId, "sku-7", "Cloud Product", "Azul", null, 2, 29.90m, 0m, null, null)],
             DateTimeOffset.UtcNow,
             orderCreatedEventId: eventId);
 
@@ -80,7 +80,7 @@ public sealed class SqlServerPersistenceTests : IAsyncLifetime
             "Customer",
             "customer@ganjj.test",
             new DeliveryAddress("Cloud Street", "10", null, "Center", "Curitiba", "PR", "80000-000", "BR"),
-            [OrderItem.Create(Guid.NewGuid(), orderId, 7, "Cloud Product", "M", null, 1, 29.90m, 0m, null, null)],
+            [OrderItem.Create(Guid.NewGuid(), orderId, "sku-7", "Cloud Product", "Azul", null, 1, 29.90m, 0m, null, null)],
             DateTimeOffset.UtcNow,
             orderCreatedEventId: eventId);
 }

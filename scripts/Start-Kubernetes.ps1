@@ -1,6 +1,7 @@
 param(
     [switch]$UseLocalImage,
-    [switch]$SkipSmokeTest
+    [switch]$SkipSmokeTest,
+    [string]$SqlServerImage
 )
 
 $ErrorActionPreference = 'Stop'
@@ -174,6 +175,11 @@ if ($UseLocalImage) {
         '--set', 'image.repository=ganjj-order',
         '--set', 'image.tag=local',
         '--set', 'image.pullPolicy=Never'
+    )
+}
+if (-not [string]::IsNullOrWhiteSpace($SqlServerImage)) {
+    $helmArguments += @(
+        '--set-string', "sqlServer.image=$SqlServerImage"
     )
 }
 

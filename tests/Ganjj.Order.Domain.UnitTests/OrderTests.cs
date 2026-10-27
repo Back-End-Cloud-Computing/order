@@ -70,6 +70,6 @@ public sealed class OrderTests
         "Rua das Flores", "123", null, "Centro", "Curitiba", "PR", "80000-000", "BR");
 
     private static OrderItem Item(Guid orderId, int quantity, decimal price) =>
-        OrderItem.Create(Guid.NewGuid(), orderId, 12, "GANJJ T-Shirt", null, null,
+        OrderItem.Create(Guid.NewGuid(), orderId, "sku-12", "GANJJ T-Shirt", null, null,
             quantity, price, 0m, null, null);
 }

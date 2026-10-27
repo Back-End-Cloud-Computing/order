@@ -181,9 +181,9 @@ sequenceDiagram
 
     Client->>O: POST /api/pedidos + JWT + Idempotency-Key
     O->>DB: Acquire idempotency key
-    O->>C: GET /api/cesta with forwarded customer JWT
-    C-->>O: current item and price snapshots
-    O->>O: Validate items and calculate sum(preco * quantidade)
+    O->>C: GET /api/cart with forwarded customer JWT
+    C-->>O: current item, list-price and discounted-price snapshots
+    O->>O: Validate items and calculate sum(discounted_price * quantity)
     loop each cart item
         O->>P: Decrement stock (operationId)
         P-->>O: success or domain error
@@ -205,10 +205,11 @@ restore endpoint for every item already decremented in reverse order.
    - return the stored success for the same completed request;
    - return conflict for an in-progress request;
    - reject reuse of the key with a different request hash.
-5. Request `GET /api/cesta` from Cart with the customer's forwarded Bearer token.
+5. Request `GET /api/cart` from Cart with the customer's forwarded Bearer token.
 6. Validate item count, product identifiers, quantities, prices, and arithmetic.
-   For the interim contract, set list/final unit price to Cart's `preco`, discount
-   to zero, and calculate `sum(preco * quantidade)`.
+   For the interim contract, use Cart's `price` as list price,
+   `discounted_price` as final unit price, derive the unit discount, and calculate
+   `sum(discounted_price * quantity)`.
 7. For each item, request stock decrement with a stable operation ID.
 8. In one SQL transaction:
    - insert Order;
@@ -258,14 +259,14 @@ On a failure before SQL commit:
 | --- | --- | --- |
 | `Id` | `Guid` | Internal item identifier |
 | `OrderId` | `Guid` | FK inside Order database only |
-| `ProductId` | long | External Product identifier, no cross-service FK |
+| `ProductId` | string (max 64) | Opaque external Product identifier, no cross-service FK |
 | `ProductName` | string | Immutable snapshot |
-| `Size` | string? | Immutable variant snapshot |
+| `Color` | string? | Immutable variant snapshot supplied by Cart |
 | `ImageUrl` | string? | Optional display snapshot |
 | `Quantity` | integer | Positive |
-| `UnitListPrice` | decimal(18,2) | Interim: Cart `preco`; target: price before discount |
-| `UnitDiscount` | decimal(18,2) | Interim: zero; target: discount per unit |
-| `UnitFinalPrice` | decimal(18,2) | Interim: Cart `preco`; target: final price per unit |
+| `UnitListPrice` | decimal(18,2) | Cart `price` snapshot |
+| `UnitDiscount` | decimal(18,2) | `price - discounted_price` per unit |
+| `UnitFinalPrice` | decimal(18,2) | Cart `discounted_price` snapshot |
 | `LineTotal` | decimal(18,2) | `UnitFinalPrice * Quantity` |
 | `PromotionId` | string? | Optional external promotion reference |
 | `PromotionName` | string? | Historical promotion description |
@@ -306,8 +307,9 @@ erDiagram
     OrderItems {
         uniqueidentifier Id PK
         uniqueidentifier OrderId FK
-        bigint ProductId
+        nvarchar ProductId
         nvarchar ProductName
+        nvarchar Color
         int Quantity
         decimal UnitListPrice
         decimal UnitDiscount
@@ -371,16 +373,19 @@ No distributed database transaction or shared schema is introduced.
 ### Cart client
 
 - Typed client with base URL from configuration.
-- `GET /api/cesta` timeout budget: 3 seconds by default.
+- `GET /api/cart` timeout budget: 3 seconds by default.
 - Forward the authenticated customer's Bearer token; never log it.
-- Validate and map the current Portuguese Cart payload at this anti-corruption
-  boundary while keeping internal C# names in English.
-- Do not call `DELETE /api/cesta` automatically without versioning.
+- Validate and map the current English Cart payload at this anti-corruption
+  boundary, including list and discounted prices.
+- Do not clear Cart automatically without versioning.
 
 ### Product client
 
 - Typed client with base URL from configuration.
-- Each decrement and restore includes a stable operation ID.
+- Call `/internal/products/{productId}/stock/decrement` and `/stock/restore` with
+  the opaque Product ID.
+- Each decrement and restore includes a stable `Idempotency-Key`; compensation
+  also references the decrement operation.
 - Timeout budget: 3 seconds per call by default.
 - Retry only when Product confirms operation-level idempotency.
 - Restore failures are logged as critical with all recovery identifiers.

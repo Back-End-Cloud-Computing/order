@@ -3,9 +3,10 @@ namespace Ganjj.Order.Application.Checkout;
 public sealed record CartSnapshot(IReadOnlyList<CartItemSnapshot> Items);
 
 public sealed record CartItemSnapshot(
-    long ProductId,
+    string ProductId,
     string ProductName,
-    string? Size,
+    string? Color,
     string? ImageUrl,
     int Quantity,
-    decimal UnitPrice);
+    decimal UnitListPrice,
+    decimal UnitFinalPrice);

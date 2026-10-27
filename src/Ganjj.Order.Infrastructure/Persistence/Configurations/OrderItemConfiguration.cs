@@ -15,8 +15,9 @@ internal sealed class OrderItemConfiguration : IEntityTypeConfiguration<OrderIte
                 "[UnitListPrice] >= 0 AND [UnitDiscount] >= 0 AND [UnitFinalPrice] >= 0 AND [LineTotal] >= 0");
         });
         builder.HasKey(item => item.Id);
+        builder.Property(item => item.ProductId).HasMaxLength(64).IsRequired();
         builder.Property(item => item.ProductName).HasMaxLength(250).IsRequired();
-        builder.Property(item => item.Size).HasMaxLength(50);
+        builder.Property(item => item.Color).HasMaxLength(50);
         builder.Property(item => item.ImageUrl).HasMaxLength(2048);
         builder.Property(item => item.UnitListPrice).HasPrecision(18, 2);
         builder.Property(item => item.UnitDiscount).HasPrecision(18, 2);

@@ -218,8 +218,8 @@ Tests:
 - Cart is called for the authenticated customer;
 - a valid Cart snapshot creates one stock operation per item;
 - order/items use exactly the Cart snapshots;
-- Cart `preco` maps to list/final unit price, zero discount, and the calculated
-  total is `sum(preco * quantidade)`;
+- Cart `price` maps to list price, `discounted_price` maps to final price, and
+  the calculated total is `sum(discounted_price * quantity)`;
 - SQL persistence occurs only after all stock operations succeed;
 - completed idempotency result is stored;
 - API returns 201 and Location header.
@@ -362,11 +362,12 @@ Production outcome:
 
 Tests:
 
-- current `GET /api/cesta` success example deserializes and validates;
+- current `GET /api/cart` success example deserializes list price, discounted
+  price, color, quantity, and opaque Product ID;
 - Cart error examples map to expected Order errors;
 - future quote/consume examples are tested only after group approval;
-- Product decrement success/error examples match;
-- Product restore operation accepts stable operation ID;
+- Product decrement sends the English route/body and stable `Idempotency-Key`;
+- Product restore sends `compensates_operation_id` for the original decrement;
 - Authorization-shaped RS256 access-token fixtures authenticate with `sub`,
   `role`, `typ`, `iss`, and `exp`;
 - the public key exposed by Authorization verifies the provider smoke token.

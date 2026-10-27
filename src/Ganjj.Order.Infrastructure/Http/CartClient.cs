@@ -15,7 +15,7 @@ internal sealed class CartClient(HttpClient httpClient) : ICartClient
         string correlationId,
         CancellationToken cancellationToken)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/cesta");
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/cart");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
         request.Headers.TryAddWithoutValidation("X-Correlation-ID", correlationId);
 
@@ -47,16 +47,17 @@ internal sealed class CartClient(HttpClient httpClient) : ICartClient
                 var payload = await response.Content.ReadFromJsonAsync<CartResponse>(cancellationToken);
                 if (payload?.Items is null)
                 {
-                    throw new InvalidDependencyContractException("Cart", "the itens collection is missing");
+                    throw new InvalidDependencyContractException("Cart", "the items collection is missing");
                 }
 
                 return new CartSnapshot(payload.Items.Select(item => new CartItemSnapshot(
                     item.ProductId,
                     item.Name,
-                    item.Size,
+                    item.Color,
                     item.ImageUrl,
                     item.Quantity,
-                    item.Price)).ToList());
+                    item.Price,
+                    item.DiscountedPrice)).ToList());
             }
             catch (InvalidDependencyContractException)
             {
@@ -69,13 +70,14 @@ internal sealed class CartClient(HttpClient httpClient) : ICartClient
         }
     }
 
-    private sealed record CartResponse([property: JsonPropertyName("itens")] List<CartItemResponse> Items);
+    private sealed record CartResponse([property: JsonPropertyName("items")] List<CartItemResponse> Items);
 
     private sealed record CartItemResponse(
-        [property: JsonPropertyName("produto_id")] long ProductId,
-        [property: JsonPropertyName("nome")] string Name,
-        [property: JsonPropertyName("tamanho")] string? Size,
-        [property: JsonPropertyName("imagem_url")] string? ImageUrl,
-        [property: JsonPropertyName("quantidade")] int Quantity,
-        [property: JsonPropertyName("preco")] decimal Price);
+        [property: JsonPropertyName("product_id")] string ProductId,
+        [property: JsonPropertyName("name")] string Name,
+        [property: JsonPropertyName("color")] string? Color,
+        [property: JsonPropertyName("image_url")] string? ImageUrl,
+        [property: JsonPropertyName("quantity")] int Quantity,
+        [property: JsonPropertyName("price")] decimal Price,
+        [property: JsonPropertyName("discounted_price")] decimal DiscountedPrice);
 }

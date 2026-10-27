@@ -61,11 +61,11 @@ public sealed class CreateOrderHandler(
                 orderId,
                 item.ProductId,
                 item.ProductName,
-                item.Size,
+                item.Color,
                 item.ImageUrl,
                 item.Quantity,
-                item.UnitPrice,
-                0m,
+                item.UnitListPrice,
+                item.UnitListPrice - item.UnitFinalPrice,
                 null,
                 null)).ToList();
 
@@ -232,18 +232,20 @@ public sealed class CreateOrderHandler(
             throw new CartEmptyException();
         }
 
-        if (cart.Items.Any(item => item.ProductId <= 0 || item.Quantity <= 0 || item.UnitPrice < 0 ||
+        if (cart.Items.Any(item => string.IsNullOrWhiteSpace(item.ProductId) || item.ProductId.Trim().Length > 64 ||
+                                   item.Quantity <= 0 || item.UnitListPrice < 0 || item.UnitFinalPrice < 0 ||
+                                   item.UnitFinalPrice > item.UnitListPrice ||
                                    string.IsNullOrWhiteSpace(item.ProductName)))
         {
             throw new InvalidDependencyContractException("Cart", "an item snapshot is malformed");
         }
     }
 
-    private static string OperationId(string key, string action, long productId, int index)
+    private static string OperationId(string key, string action, string productId, int index)
     {
         var input = $"{key}:{action}:{productId}:{index}";
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(input)))[..32];
     }
 
-    private sealed record DecrementedStock(long ProductId, int Quantity, string OperationId, int Index);
+    private sealed record DecrementedStock(string ProductId, int Quantity, string OperationId, int Index);
 }

@@ -3,14 +3,14 @@ namespace Ganjj.Order.Application.Abstractions;
 public interface IProductStockClient
 {
     Task DecrementAsync(
-        long productId,
+        string productId,
         int quantity,
         string operationId,
         string correlationId,
         CancellationToken cancellationToken);
 
     Task RestoreAsync(
-        long productId,
+        string productId,
         int quantity,
         string operationId,
         string compensatesOperationId,

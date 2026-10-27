@@ -12,17 +12,17 @@ public sealed class CartEmptyException()
 public sealed class IdempotencyConflictException(string message)
     : OrderApplicationException("idempotency_conflict", message);
 
-public sealed class InsufficientStockException(long productId, int? availableStock)
+public sealed class InsufficientStockException(string productId, int? availableStock)
     : OrderApplicationException("insufficient_stock", $"Product {productId} has insufficient stock.")
 {
-    public long ProductId { get; } = productId;
+    public string ProductId { get; } = productId;
     public int? AvailableStock { get; } = availableStock;
 }
 
-public sealed class ProductNotFoundException(long productId)
+public sealed class ProductNotFoundException(string productId)
     : OrderApplicationException("product_not_found", $"Product {productId} was not found.")
 {
-    public long ProductId { get; } = productId;
+    public string ProductId { get; } = productId;
 }
 
 public sealed class DependencyUnavailableException(string dependency, Exception? innerException = null)

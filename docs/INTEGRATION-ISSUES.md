@@ -56,23 +56,24 @@ A implementação e os testes locais foram concluídos.
 
 ### INT-002 — Cotação final do carrinho
 
-**Situação atual:** o Cart está implementado e armazena em Redis um snapshot com
-`produto_id`, `nome`, `preco`, `cor`, `imagem_url` e `quantidade`. O preço é
-obtido do Product quando o item é adicionado.
+**Situação atual:** o Cart está implementado em `GET /api/cart` e compõe os dados
+atuais do Product com os descontos do Promotion. A resposta possui `product_id`,
+`name`, `price`, `color`, `image_url`, `quantity` e `discounted_price`, além dos
+totais do carrinho.
 
-**Problema:** o Cart ainda não possui subtotal, desconto, total, versão do
-carrinho, cotação de checkout, expiração de cotação nem integração com Promotion
-para formar o preço final. Por isso, o preço pode estar desatualizado no momento
-da compra e as promoções podem não estar refletidas.
+**Problema restante:** o Cart ainda não persiste versão nem cotação de checkout
+com expiração. O cupom é calculado somente quando recebido por query string e não
+fica associado a uma cotação que o Order possa consumir com segurança.
 
-**Decisão provisória do Order:** chamar `GET /api/cesta`, usar o `preco` retornado
-como snapshot e calcular apenas `preco * quantidade`. O Order não aplicará regras
-de promoção.
+**Decisão provisória do Order:** chamar `GET /api/cart`, persistir `price` como
+preço de lista e `discounted_price` como preço final e calcular
+`discounted_price * quantity`. O Order não aplicará regras de promoção e não
+consumirá cupom até existir uma cotação persistida/autoritativa.
 
 **Decisão que o grupo precisa tomar:**
 
-1. Cart passa a produzir uma cotação final de checkout; ou
-2. o grupo aceita formalmente o preço simples já armazenado no Cart para a
+1. Cart passa a produzir e consumir uma cotação final versionada; ou
+2. o grupo aceita formalmente o snapshot promocional sem cupom para a
    apresentação acadêmica.
 
 **Recomendação:** Cart deve produzir a cotação final, consultando Product e
@@ -83,8 +84,8 @@ Promotion, porque Order não deve conhecer regras de preço ou promoção.
 
 ### INT-003 — Limpeza segura do carrinho
 
-**Situação atual:** o Cart oferece `DELETE /api/cesta`, que remove a cesta
-inteira, mas não possui versão ou operação de consumo de checkout.
+**Situação atual:** o Cart não possui versão ou operação de consumo de checkout
+que o Order possa usar após persistir o pedido.
 
 **Risco:** se o cliente adicionar outro produto enquanto o pedido é criado, uma
 limpeza posterior pode apagar também o item novo.
@@ -99,26 +100,26 @@ na compra.
 
 ### INT-004 — Estoque idempotente e compensação
 
-**Situação atual:** o projeto original possui operações de decremento e
-restauração, mas elas não recebem um identificador estável da operação.
+**Situação atual:** resolvida no contrato entre Order e Product. O Product expõe
+`/internal/products/{id}/stock/decrement` e `/stock/restore`, recebe
+`Idempotency-Key` e elimina repetição da mesma operação.
 
 **Risco:** uma repetição causada por timeout pode diminuir ou restaurar o estoque
 mais de uma vez.
 
-**Recomendação:** Product deve aceitar uma `Idempotency-Key`/`operation_id` nas
-operações de decremento e restauração e devolver o mesmo resultado em chamadas
-repetidas.
+**Implementação no Order:** cada decremento e restauração recebe uma chave estável;
+a restauração também envia `compensates_operation_id`. O Order não faz repetição
+cega de POST por timeout.
 
 **Responsáveis:** João Correa (Product) e Rodrigo Alves (Order).
 
 ### INT-005 — Tipos dos identificadores
 
-**Problema:** cada linguagem e banco pode representar IDs de maneira diferente,
-por exemplo número, UUID ou texto.
+**Situação atual:** resolvida para Product/Order. `product_id` é um texto opaco de
+até 64 caracteres; o Order não interpreta nem converte esse valor para número.
 
-**Decisão necessária:** definir o tipo externo de `customer_id`, `product_id`,
-`promotion_id`, `cart/quote_id` e `order_id`. Um serviço pode usar outro tipo
-internamente, mas não deve alterar o tipo publicado no contrato.
+**Ainda pendente:** confirmar os tipos externos de `promotion_id` e de uma futura
+`cart/quote_id`. `customer_id` e `order_id` são UUIDs; `product_id` é texto.
 
 **Responsável:** todo o grupo.
 
@@ -138,10 +139,9 @@ gravados no GitHub ou em imagens Docker.
 **Decisão já indicada pelo grupo:** novo código, classes, propriedades e payloads
 devem usar inglês.
 
-**Pendente:** decidir se as URLs públicas antigas (`/api/cesta`,
-`/api/pedidos`, `/api/produtos`) serão preservadas por compatibilidade ou
-migradas para inglês. O Gateway pode manter aliases públicos enquanto os
-contratos internos são padronizados.
+**Decisão aplicada nas integrações atuais:** o Cart publica `/api/cart` e o
+Product publica `/internal/products/...`; o Order mantém `/api/pedidos` como rota
+pública por compatibilidade. O Gateway continua sendo o ponto público de entrada.
 
 **Responsável:** todo o grupo.
 
