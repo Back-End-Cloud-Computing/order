@@ -134,20 +134,20 @@ public sealed class OrderRequestValidationTests : IDisposable
             string bearerToken,
             string correlationId,
             CancellationToken cancellationToken) => Task.FromResult(new CartSnapshot(
-            [new CartItemSnapshot(101, "Camiseta GANJJ", "M", null, 2, 49.90m)]));
+            [new CartItemSnapshot("sku-101", "Camiseta GANJJ", "Preto", null, 2, 49.90m, 49.90m)]));
     }
 
     private sealed class SuccessfulProductStockClient : IProductStockClient
     {
         public Task DecrementAsync(
-            long productId,
+            string productId,
             int quantity,
             string operationId,
             string correlationId,
             CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task RestoreAsync(
-            long productId,
+            string productId,
             int quantity,
             string operationId,
             string compensatesOperationId,

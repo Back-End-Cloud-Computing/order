@@ -50,6 +50,17 @@ Para testar alterações ainda não publicadas, use o fallback local:
 .\scripts\Start-Kubernetes.ps1 -UseLocalImage
 ```
 
+Em hosts ARM64 onde a imagem padrão do SQL Server 2022 não inicia, informe uma
+imagem SQL compatível com a arquitetura. O bootstrap repassa a escolha ao Helm e
+aceita tanto o caminho atual quanto o legado do `sqlcmd` usado pelas probes:
+
+```powershell
+.\scripts\Start-Kubernetes.ps1 -SqlServerImage mcr.microsoft.com/azure-sql-edge:latest
+```
+
+A imagem alternativa é uma decisão do ambiente local; ela não altera o valor
+padrão versionado para os demais integrantes.
+
 Para repetir somente a validação depois que o ambiente já estiver instalado:
 
 ```powershell
@@ -141,4 +152,6 @@ claims `sub`, `email`, `role` e `typ` do Authorization, além do header
 
 `Em implementação` - fundação, domínio, persistência, API, autenticação,
 integrações HTTP, migrations, Docker, Kubernetes local e testes automatizados
-disponíveis; integração de checkout depende dos contratos dos demais serviços.
+disponíveis. Os contratos atuais de leitura do Cart e estoque do Product estão
+implementados; cotação versionada, consumo seguro do carrinho e cupom ainda
+dependem de evolução conjunta dos serviços.

@@ -16,7 +16,7 @@ public sealed class CreateOrderHandlerTests
     {
         var repository = new FakeOrderRepository();
         var stock = new FakeStockClient();
-        var cart = new FakeCartClient(Cart(Item(12, 2, 50m), Item(34, 1, 25m)));
+        var cart = new FakeCartClient(Cart(Item("sku-12", 2, 50m), Item("sku-34", 1, 25m)));
         var handler = new CreateOrderHandler(
             repository, cart, stock, new FakeOrderCreatedNotifier(), new FixedTimeProvider(Now),
             new SequenceIds(), NullLogger<CreateOrderHandler>.Instance);
@@ -24,7 +24,7 @@ public sealed class CreateOrderHandlerTests
         var result = await handler.HandleAsync(Command(), CancellationToken.None);
 
         Assert.Equal(125m, result.Total);
-        Assert.Equal([12L, 34L], stock.Decremented.Select(call => call.ProductId));
+        Assert.Equal(["sku-12", "sku-34"], stock.Decremented.Select(call => call.ProductId));
         Assert.NotNull(repository.SavedOrder);
         Assert.Equal(2, repository.SavedOrder.Items.Count);
         Assert.Equal(IdempotencyStatus.Completed, repository.Entry?.Status);
@@ -36,7 +36,7 @@ public sealed class CreateOrderHandlerTests
     {
         var repository = new FakeOrderRepository();
         var notifier = new FakeOrderCreatedNotifier(() => Assert.NotNull(repository.SavedOrder));
-        var handler = Handler(repository, new FakeStockClient(), Cart(Item(12, 2, 50m)), notifier);
+        var handler = Handler(repository, new FakeStockClient(), Cart(Item("sku-12", 2, 50m)), notifier);
 
         var result = await handler.HandleAsync(Command() with { CorrelationId = "correlation-123" },
             CancellationToken.None);
@@ -54,6 +54,24 @@ public sealed class CreateOrderHandlerTests
     }
 
     [Fact]
+    public async Task Handle_WhenCartHasPromotion_ShouldPersistListAndDiscountedPrices()
+    {
+        var repository = new FakeOrderRepository();
+        var discountedItem = new CartItemSnapshot(
+            "product-abc", "Camiseta GANJJ", "Preto", null, 2, 100m, 90m);
+        var handler = Handler(repository, new FakeStockClient(), Cart(discountedItem));
+
+        var result = await handler.HandleAsync(Command(), CancellationToken.None);
+
+        Assert.Equal(180m, result.Total);
+        var persisted = Assert.Single(repository.SavedOrder!.Items);
+        Assert.Equal(100m, persisted.UnitListPrice);
+        Assert.Equal(10m, persisted.UnitDiscount);
+        Assert.Equal(90m, persisted.UnitFinalPrice);
+        Assert.Equal("Preto", persisted.Color);
+    }
+
+    [Fact]
     public async Task Handle_WhenSupportNotificationFails_ShouldKeepCompletedOrderAndNotCompensateStock()
     {
         var repository = new FakeOrderRepository();
@@ -62,7 +80,7 @@ public sealed class CreateOrderHandlerTests
         {
             Failure = new HttpRequestException("Support is unavailable.")
         };
-        var handler = Handler(repository, stock, Cart(Item(12, 1, 50m)), notifier);
+        var handler = Handler(repository, stock, Cart(Item("sku-12", 1, 50m)), notifier);
 
         var result = await handler.HandleAsync(Command(), CancellationToken.None);
 
@@ -76,13 +94,13 @@ public sealed class CreateOrderHandlerTests
     public async Task Handle_WhenSecondStockDecrementFails_ShouldRestoreFirstAndNotPersistOrder()
     {
         var repository = new FakeOrderRepository();
-        var stock = new FakeStockClient { FailProductId = 34 };
-        var handler = Handler(repository, stock, Cart(Item(12, 1, 50m), Item(34, 1, 25m)));
+        var stock = new FakeStockClient { FailProductId = "sku-34" };
+        var handler = Handler(repository, stock, Cart(Item("sku-12", 1, 50m), Item("sku-34", 1, 25m)));
 
         await Assert.ThrowsAsync<InsufficientStockException>(() =>
             handler.HandleAsync(Command(), CancellationToken.None));
 
-        Assert.Equal([12L], stock.Restored.Select(call => call.ProductId));
+        Assert.Equal(["sku-12"], stock.Restored.Select(call => call.ProductId));
         Assert.Null(repository.SavedOrder);
         Assert.Null(repository.Entry);
     }
@@ -108,7 +126,7 @@ public sealed class CreateOrderHandlerTests
         var originalId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
         var original = ExistingOrder(originalId);
         repository.SeedCompleted("checkout-key", CreateOrderHandler.ComputeRequestHash(Command()), original);
-        var cart = new FakeCartClient(Cart(Item(99, 1, 999m)));
+        var cart = new FakeCartClient(Cart(Item("sku-99", 1, 999m)));
         var stock = new FakeStockClient();
         var handler = new CreateOrderHandler(
             repository, cart, stock, new FakeOrderCreatedNotifier(), new FixedTimeProvider(Now),
@@ -140,12 +158,12 @@ public sealed class CreateOrderHandlerTests
 
     private static CartSnapshot Cart(params CartItemSnapshot[] items) => new(items);
 
-    private static CartItemSnapshot Item(long id, int quantity, decimal price) =>
-        new(id, $"Product {id}", null, null, quantity, price);
+    private static CartItemSnapshot Item(string id, int quantity, decimal price) =>
+        new(id, $"Product {id}", null, null, quantity, price, price);
 
     private static OrderAggregate ExistingOrder(Guid id)
     {
-        var item = OrderItem.Create(Guid.NewGuid(), id, 12, "Product 12", null, null, 1, 10m, 0m, null, null);
+        var item = OrderItem.Create(Guid.NewGuid(), id, "sku-12", "Product 12", null, null, 1, 10m, 0m, null, null);
         return OrderAggregate.Create(id, CustomerId, null, "customer@example.com",
             new DeliveryAddress("Rua A", "1", null, "Centro", "Curitiba", "PR", "80000-000", "BR"),
             [item], Now);
@@ -167,11 +185,11 @@ public sealed class CreateOrderHandlerTests
 
     private sealed class FakeStockClient : IProductStockClient
     {
-        public long? FailProductId { get; init; }
+        public string? FailProductId { get; init; }
         public List<StockCall> Decremented { get; } = [];
         public List<StockCall> Restored { get; } = [];
 
-        public Task DecrementAsync(long productId, int quantity, string operationId, string correlationId,
+        public Task DecrementAsync(string productId, int quantity, string operationId, string correlationId,
             CancellationToken cancellationToken)
         {
             if (productId == FailProductId)
@@ -183,7 +201,7 @@ public sealed class CreateOrderHandlerTests
             return Task.CompletedTask;
         }
 
-        public Task RestoreAsync(long productId, int quantity, string operationId, string compensatesOperationId,
+        public Task RestoreAsync(string productId, int quantity, string operationId, string compensatesOperationId,
             string correlationId, CancellationToken cancellationToken)
         {
             Restored.Add(new StockCall(productId, quantity, operationId));
@@ -191,7 +209,7 @@ public sealed class CreateOrderHandlerTests
         }
     }
 
-    private sealed record StockCall(long ProductId, int Quantity, string OperationId);
+    private sealed record StockCall(string ProductId, int Quantity, string OperationId);
 
     private sealed class FakeOrderCreatedNotifier(Action? beforeNotify = null) : IOrderCreatedNotifier
     {

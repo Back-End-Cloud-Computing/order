@@ -8,9 +8,9 @@ public sealed class OrderItem
 
     public Guid Id { get; private set; }
     public Guid OrderId { get; private set; }
-    public long ProductId { get; private set; }
+    public string ProductId { get; private set; } = string.Empty;
     public string ProductName { get; private set; } = string.Empty;
-    public string? Size { get; private set; }
+    public string? Color { get; private set; }
     public string? ImageUrl { get; private set; }
     public int Quantity { get; private set; }
     public decimal UnitListPrice { get; private set; }
@@ -23,9 +23,9 @@ public sealed class OrderItem
     public static OrderItem Create(
         Guid id,
         Guid orderId,
-        long productId,
+        string productId,
         string productName,
-        string? size,
+        string? color,
         string? imageUrl,
         int quantity,
         decimal unitListPrice,
@@ -38,9 +38,9 @@ public sealed class OrderItem
             throw new DomainValidationException("Item and Order identifiers are required.");
         }
 
-        if (productId <= 0)
+        if (string.IsNullOrWhiteSpace(productId) || productId.Trim().Length > 64)
         {
-            throw new DomainValidationException("ProductId must be positive.");
+            throw new DomainValidationException("ProductId must contain between 1 and 64 characters.");
         }
 
         if (string.IsNullOrWhiteSpace(productName))
@@ -69,9 +69,9 @@ public sealed class OrderItem
         {
             Id = id,
             OrderId = orderId,
-            ProductId = productId,
+            ProductId = productId.Trim(),
             ProductName = productName.Trim(),
-            Size = string.IsNullOrWhiteSpace(size) ? null : size.Trim(),
+            Color = string.IsNullOrWhiteSpace(color) ? null : color.Trim(),
             ImageUrl = string.IsNullOrWhiteSpace(imageUrl) ? null : imageUrl.Trim(),
             Quantity = quantity,
             UnitListPrice = decimal.Round(unitListPrice, 2, MidpointRounding.AwayFromZero),

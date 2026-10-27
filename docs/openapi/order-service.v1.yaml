@@ -458,11 +458,12 @@ components:
         - total_linha
       properties:
         produto_id:
-          type: integer
-          format: int64
+          type: string
+          minLength: 1
+          maxLength: 64
         nome:
           type: string
-        tamanho:
+        cor:
           type: [string, 'null']
         imagem_url:
           type: [string, 'null']

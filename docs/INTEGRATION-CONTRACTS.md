@@ -71,7 +71,7 @@ Until the group approves and implements checkout quotes, Order integrates with
 the Cart API that exists today:
 
 ```http
-GET /api/cesta
+GET /api/cart
 Authorization: Bearer <customer-access-token>
 X-Correlation-ID: <id>
 ```
@@ -80,28 +80,39 @@ Current successful response:
 
 ```json
 {
-  "itens": [
+  "items": [
     {
-      "id": 12,
-      "produto_id": 12,
-      "nome": "Camiseta GANJJ",
-      "preco": 50.00,
-      "cor": "preta",
-      "imagem_url": null,
-      "quantidade": 2
+      "id": "cart-item-1",
+      "product_id": "product-abc",
+      "name": "Camiseta GANJJ",
+      "price": 50.00,
+      "color": "preta",
+      "image_url": null,
+      "quantity": 2,
+      "discount_percentage": 20,
+      "discounted_price": 40.00
     }
-  ]
+  ],
+  "subtotal": 100.00,
+  "promotions_discount": 20.00,
+  "coupon_discount": 0,
+  "total": 80.00,
+  "coupon": null,
+  "discounts_applied": true
 }
 ```
 
-For this interim version, Order treats `preco` received server-to-server from Cart
-as the item snapshot and calculates only `sum(preco * quantidade)`. Order does not
-apply promotion rules. The access token is forwarded because the current Cart has
-no internal read endpoint.
+For this interim version, Order stores `price` as the list-price snapshot and
+`discounted_price` as the final unit price. The unit discount is their difference,
+and Order calculates `sum(discounted_price * quantity)`. Promotion rules remain
+owned by Cart/Promotion. The access token is forwarded because the current Cart
+has no internal read endpoint. Coupon data is not considered authoritative because
+the current Cart accepts it only as an optional query parameter and does not persist
+a versioned quote for Order to consume.
 
 The current Cart has no quote/version/consume operation. Order therefore does not
 automatically clear the cart after creating an order in the interim version; a
-blind `DELETE /api/cesta` could remove products added concurrently. These are
+blind cart deletion could remove products added concurrently. These are
 documented limitations, not the final target contract.
 
 ### Target checkout-quote contract (pending group decision)
@@ -128,9 +139,9 @@ Successful response:
   "expires_at": "2026-08-21T03:05:00Z",
   "items": [
     {
-      "product_id": 12,
+      "product_id": "product-abc",
       "name": "Camiseta GANJJ",
-      "size": "M",
+      "color": "preta",
       "image_url": null,
       "quantity": 2,
       "unit_list_price": 50.00,
@@ -198,7 +209,7 @@ Expected behavior:
 ### Required Cart work
 
 1. Add cart versioning.
-2. Add product size/variant if required by the catalog.
+2. Preserve the Product variant data required by the catalog.
 3. Consult Product and Promotion at checkout time.
 4. Calculate subtotal, discounts, and total.
 5. Store short-lived quote data in Redis.
@@ -226,7 +237,7 @@ Content-Type: application/json
 {
   "quantity": 2,
   "reason": "order_checkout",
-  "reference_id": "<quote-id>"
+  "reference_id": "<stock-operation-id>"
 }
 ```
 
@@ -235,7 +246,7 @@ Success:
 ```json
 {
   "operation_id": "<stable-operation-id>",
-  "product_id": 12,
+  "product_id": "product-abc",
   "remaining_stock": 18
 }
 ```
@@ -251,8 +262,8 @@ Content-Type: application/json
 
 {
   "quantity": 2,
-  "reason": "order_checkout_compensation",
-  "reference_id": "<quote-id>",
+  "reason": "order_compensation",
+  "reference_id": "<compensation-operation-id>",
   "compensates_operation_id": "<decrement-operation-id>"
 }
 ```

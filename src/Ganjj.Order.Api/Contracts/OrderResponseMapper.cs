@@ -31,7 +31,7 @@ public static class OrderResponseMapper
             order.Items.Select(item => new OrderItemResponse(
                 item.ProductId,
                 item.ProductName,
-                item.Size,
+                item.Color,
                 item.ImageUrl,
                 item.Quantity,
                 item.UnitFinalPrice,

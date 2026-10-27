@@ -37,7 +37,7 @@ public sealed class OrderItemTests
         OrderItem.Create(
             Guid.NewGuid(),
             Guid.NewGuid(),
-            12,
+            "sku-12",
             "GANJJ T-Shirt",
             null,
             null,

@@ -13,38 +13,41 @@ internal sealed class ProductStockClient(
     IOptions<InternalServiceOptions> internalOptions) : IProductStockClient
 {
     public Task DecrementAsync(
-        long productId,
+        string productId,
         int quantity,
         string operationId,
         string correlationId,
         CancellationToken cancellationToken) =>
-        SendAsync(productId, quantity, "decrement-stock", operationId, null, correlationId, cancellationToken);
+        SendAsync(productId, quantity, "decrement", "order_checkout", operationId, null, correlationId,
+            cancellationToken);
 
     public Task RestoreAsync(
-        long productId,
+        string productId,
         int quantity,
         string operationId,
         string compensatesOperationId,
         string correlationId,
         CancellationToken cancellationToken) =>
-        SendAsync(productId, quantity, "restore-stock", operationId, compensatesOperationId, correlationId,
-            cancellationToken);
+        SendAsync(productId, quantity, "restore", "order_compensation", operationId, compensatesOperationId,
+            correlationId, cancellationToken);
 
     private async Task SendAsync(
-        long productId,
+        string productId,
         int quantity,
         string action,
+        string reason,
         string operationId,
         string? compensatesOperationId,
         string correlationId,
         CancellationToken cancellationToken)
     {
+        var escapedProductId = Uri.EscapeDataString(productId);
         using var request = new HttpRequestMessage(
-            HttpMethod.Post, $"/internal/produtos/{productId}/{action}");
+            HttpMethod.Post, $"/internal/products/{escapedProductId}/stock/{action}");
         request.Headers.TryAddWithoutValidation("x-internal-secret", internalOptions.Value.Secret);
         request.Headers.TryAddWithoutValidation("Idempotency-Key", operationId);
         request.Headers.TryAddWithoutValidation("X-Correlation-ID", correlationId);
-        request.Content = JsonContent.Create(new StockRequest(quantity, operationId, compensatesOperationId));
+        request.Content = JsonContent.Create(new StockRequest(quantity, reason, operationId, compensatesOperationId));
 
         HttpResponseMessage response;
         try
@@ -75,7 +78,8 @@ internal sealed class ProductStockClient(
                 throw new ProductNotFoundException(productId);
             }
 
-            if (action == "decrement-stock" && response.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.Conflict)
+            if (action == "decrement" && response.StatusCode == HttpStatusCode.Conflict &&
+                string.Equals(error?.ErrorType, "insufficient_stock", StringComparison.Ordinal))
             {
                 throw new InsufficientStockException(productId, error?.AvailableStock);
             }
@@ -91,11 +95,12 @@ internal sealed class ProductStockClient(
     }
 
     private sealed record StockRequest(
-        [property: JsonPropertyName("quantidade")] int Quantity,
-        [property: JsonPropertyName("operation_id")] string OperationId,
+        [property: JsonPropertyName("quantity")] int Quantity,
+        [property: JsonPropertyName("reason")] string Reason,
+        [property: JsonPropertyName("reference_id")] string ReferenceId,
         [property: JsonPropertyName("compensates_operation_id")] string? CompensatesOperationId);
 
     private sealed record ProductError(
-        [property: JsonPropertyName("error")] string? Error,
-        [property: JsonPropertyName("estoque_disponivel")] int? AvailableStock);
+        [property: JsonPropertyName("error_type")] string? ErrorType,
+        [property: JsonPropertyName("available_stock")] int? AvailableStock);
 }

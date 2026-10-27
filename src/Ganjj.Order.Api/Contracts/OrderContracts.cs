@@ -72,9 +72,9 @@ public sealed record DeliveryAddressResponse(
     [property: JsonPropertyName("pais")] string Country);
 
 public sealed record OrderItemResponse(
-    [property: JsonPropertyName("produto_id")] long ProductId,
+    [property: JsonPropertyName("produto_id")] string ProductId,
     [property: JsonPropertyName("nome")] string ProductName,
-    [property: JsonPropertyName("tamanho")] string? Size,
+    [property: JsonPropertyName("cor")] string? Color,
     [property: JsonPropertyName("imagem_url")] string? ImageUrl,
     [property: JsonPropertyName("quantidade")] int Quantity,
     [property: JsonPropertyName("preco_unitario")] decimal UnitFinalPrice,

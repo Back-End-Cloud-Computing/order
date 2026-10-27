@@ -74,8 +74,9 @@ The service is successful when the team can demonstrate that:
 
 ### Shopping Cart service
 
-- Currently supplies item snapshots through `GET /api/cesta`.
-- Is the server-side source of product IDs, names, prices, images, and quantities
+- Currently supplies item snapshots through `GET /api/cart`.
+- Is the server-side source of product IDs, names, list/final prices, colors,
+  images, and quantities
   used by the initial Order implementation.
 - May later produce and consume a versioned, promotion-aware checkout quote after
   the group approves that contract.
@@ -135,8 +136,8 @@ The service is successful when the team can demonstrate that:
 1. The authenticated customer sends a create-order request with a delivery
    address and an idempotency key.
 2. Order requests the authenticated customer's current items from Cart.
-3. Cart returns its stored product/price snapshots and Order validates their
-   quantities and arithmetic.
+3. Cart returns Product data composed with Promotion discounts and Order validates
+   identifiers, quantities, and price arithmetic.
 4. Order decrements stock through Product.
 5. Order saves the order and items in one SQL Server transaction.
 6. Order returns `201 Created` with the durable order snapshot.
@@ -211,8 +212,9 @@ The service is successful when the team can demonstrate that:
 
 1. Quantity must be a positive integer.
 2. Money is stored as decimal values, never binary floating point.
-3. In the interim flow, list price and final price equal Cart's `preco`, discount
-   is zero, and the persisted total is `sum(preco * quantidade)`.
+3. In the interim flow, list price equals Cart's `price`, final price equals
+   `discounted_price`, and the persisted total is
+   `sum(discounted_price * quantity)`.
 4. The Cart is loaded for the authenticated `id`; no customer ID comes from JSON.
 5. An order item is an immutable commercial snapshot.
 6. Removing or renaming a product later does not change an existing order.
@@ -234,7 +236,7 @@ from the client request because checkout data must be obtained from Cart.
 
 ## 12. Dependencies and assumptions
 
-- The initial implementation uses the existing `GET /api/cesta` contract and
+- The initial implementation uses the existing `GET /api/cart` contract and
   forwards the customer's Bearer token.
 - Cart checkout quotes, cart versioning, safe consume, and promotion composition
   remain pending in `INTEGRATION-ISSUES.md`.
@@ -248,7 +250,7 @@ from the client request because checkout data must be obtained from Cart.
 
 | Risk | Impact | Mitigation |
 | --- | --- | --- |
-| Current Cart price is stale or excludes promotions | Order total may differ from intended commercial total | Document interim behavior and ask the group to approve a Cart checkout quote |
+| Current Cart snapshot is not versioned and coupon is query-only | Order cannot safely consume a coupon or prove the cart did not change | Keep coupon out of Order until Cart provides a persisted checkout quote |
 | Current Cart has no safe consume/version operation | Clearing may remove newly added products | Do not auto-clear in the interim implementation |
 | Product operations are not idempotent | Retries may duplicate stock changes | Require operation IDs and disable blind POST retries |
 | Compensation fails | Stock and order state diverge | Structured alert, persisted recovery record, manual/retry procedure |
