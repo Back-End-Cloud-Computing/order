@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using Ganjj.Order.Application.Checkout;
 using Ganjj.Order.Infrastructure.Configuration;
 using Ganjj.Order.Infrastructure.Http;
 using Microsoft.Extensions.Options;
@@ -59,6 +60,39 @@ public sealed class CartAndProductClientTests
         Assert.Equal(2, item.Quantity);
         Assert.Equal(100m, item.UnitListPrice);
         Assert.Equal(90m, item.UnitFinalPrice);
+    }
+
+    [Fact]
+    public async Task CartClient_WhenDiscountedPriceIsMissing_ShouldRejectPayload()
+    {
+        const string payload = """
+                               {
+                                 "items": [
+                                   {
+                                     "product_id": "product-abc",
+                                     "name": "Camiseta GANJJ",
+                                     "price": 100.00,
+                                     "quantity": 2
+                                   }
+                                 ]
+                               }
+                               """;
+        var handler = new RecordingHandler(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(payload, Encoding.UTF8, "application/json")
+        });
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("http://shopping-cart:3003") };
+        var client = new CartClient(httpClient);
+
+        var exception = await Assert.ThrowsAsync<InvalidDependencyContractException>(() =>
+            client.GetCurrentAsync(
+                Guid.Parse("11111111-1111-1111-1111-111111111111"),
+                "customer-token",
+                "correlation-123",
+                CancellationToken.None));
+
+        Assert.Equal("invalid_dependency_contract", exception.Code);
+        Assert.Contains("JSON payload is invalid", exception.Message);
     }
 
     [Fact]

@@ -78,6 +78,6 @@ internal sealed class CartClient(HttpClient httpClient) : ICartClient
         [property: JsonPropertyName("color")] string? Color,
         [property: JsonPropertyName("image_url")] string? ImageUrl,
         [property: JsonPropertyName("quantity")] int Quantity,
-        [property: JsonPropertyName("price")] decimal Price,
-        [property: JsonPropertyName("discounted_price")] decimal DiscountedPrice);
+        [property: JsonPropertyName("price"), JsonRequired] decimal Price,
+        [property: JsonPropertyName("discounted_price"), JsonRequired] decimal DiscountedPrice);
 }
