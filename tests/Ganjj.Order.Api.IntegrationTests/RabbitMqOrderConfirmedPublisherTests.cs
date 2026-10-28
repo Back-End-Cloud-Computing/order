@@ -9,7 +9,12 @@ namespace Ganjj.Order.Api.IntegrationTests;
 
 public sealed class RabbitMqOrderConfirmedPublisherTests : IAsyncLifetime
 {
-    private readonly RabbitMqContainer rabbitMq = new RabbitMqBuilder("rabbitmq:4.1-management-alpine").Build();
+    private const string UserName = "order-test";
+    private const string Password = "order-test-password";
+    private readonly RabbitMqContainer rabbitMq = new RabbitMqBuilder("rabbitmq:4.1-management-alpine")
+        .WithUsername(UserName)
+        .WithPassword(Password)
+        .Build();
 
     public Task InitializeAsync() => rabbitMq.StartAsync();
 
@@ -24,8 +29,8 @@ public sealed class RabbitMqOrderConfirmedPublisherTests : IAsyncLifetime
         {
             HostName = rabbitMq.Hostname,
             Port = rabbitMq.GetMappedPublicPort(5672),
-            UserName = "guest",
-            Password = "guest"
+            UserName = UserName,
+            Password = Password
         };
         await using var connection = await factory.CreateConnectionAsync();
         await using var channel = await connection.CreateChannelAsync();
@@ -39,8 +44,8 @@ public sealed class RabbitMqOrderConfirmedPublisherTests : IAsyncLifetime
             Enabled = true,
             HostName = rabbitMq.Hostname,
             Port = rabbitMq.GetMappedPublicPort(5672),
-            UserName = "guest",
-            Password = "guest",
+            UserName = UserName,
+            Password = Password,
             Exchange = exchange,
             RoutingKey = routingKey
         }));
