@@ -61,6 +61,26 @@ spec:
               value: "true"
             - name: ApiDocs__Enabled
               value: "true"
+            - name: RabbitMq__Enabled
+              value: "true"
+            - name: RabbitMq__HostName
+              value: rabbitmq
+            - name: RabbitMq__Port
+              value: "5672"
+            - name: RabbitMq__UserName
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-credentials
+                  key: username
+            - name: RabbitMq__Password
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-credentials
+                  key: password
+            - name: RabbitMq__Exchange
+              value: ganjj.orders
+            - name: RabbitMq__RoutingKey
+              value: order.confirmed
           resources:
             requests:
               cpu: 100m

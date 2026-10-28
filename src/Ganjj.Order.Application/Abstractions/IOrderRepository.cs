@@ -1,3 +1,4 @@
+using Ganjj.Order.Application.Checkout;
 using Ganjj.Order.Domain.Orders;
 using OrderAggregate = Ganjj.Order.Domain.Orders.Order;
 
@@ -30,6 +31,7 @@ public interface IOrderRepository
 
     Task SaveAndCompleteAsync(
         OrderAggregate order,
+        OrderConfirmedEvent orderConfirmedEvent,
         string idempotencyKey,
         CancellationToken cancellationToken);
 

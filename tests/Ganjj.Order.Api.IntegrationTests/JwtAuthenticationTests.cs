@@ -4,6 +4,7 @@ using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using Ganjj.Order.Application.Abstractions;
+using Ganjj.Order.Application.Checkout;
 using Ganjj.Order.Domain.Orders;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -210,7 +211,8 @@ public sealed class JwtAuthenticationTests : IDisposable
         public Task<bool> TryStartAsync(string key, string requestHash, Guid customerId, DateTimeOffset now,
             CancellationToken cancellationToken) => Task.FromResult(true);
 
-        public Task SaveAndCompleteAsync(OrderAggregate order, string idempotencyKey,
+        public Task SaveAndCompleteAsync(OrderAggregate order, OrderConfirmedEvent orderConfirmedEvent,
+            string idempotencyKey,
             CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task RemoveIdempotencyAsync(string key, CancellationToken cancellationToken) => Task.CompletedTask;

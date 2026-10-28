@@ -29,6 +29,16 @@ public sealed class CreateOrderHandlerTests
         Assert.Equal(2, repository.SavedOrder.Items.Count);
         Assert.Equal(IdempotencyStatus.Completed, repository.Entry?.Status);
         Assert.Equal("token", cart.BearerToken);
+        var integrationEvent = Assert.IsType<OrderConfirmedEvent>(repository.SavedOrderConfirmedEvent);
+        Assert.Equal(Guid.Parse("00000000-0000-0000-0000-000000000003"), integrationEvent.EventId);
+        Assert.Equal(result.Id, integrationEvent.OrderId);
+        Assert.Equal(Now, integrationEvent.OccurredAt);
+        Assert.Null(integrationEvent.CouponCode);
+        Assert.Equal("checkout-key", integrationEvent.CorrelationId);
+        Assert.Collection(
+            integrationEvent.Items,
+            item => { Assert.Equal("sku-12", item.ProductId); Assert.Equal(2, item.Quantity); },
+            item => { Assert.Equal("sku-34", item.ProductId); Assert.Equal(1, item.Quantity); });
     }
 
     [Fact]
@@ -138,6 +148,7 @@ public sealed class CreateOrderHandlerTests
         Assert.Equal(10m, result.Total);
         Assert.Equal(0, cart.Calls);
         Assert.Empty(stock.Decremented);
+        Assert.Null(repository.SavedOrderConfirmedEvent);
     }
 
     private static CreateOrderHandler Handler(
@@ -241,10 +252,14 @@ public sealed class CreateOrderHandlerTests
             return Task.FromResult(true);
         }
 
-        public Task SaveAndCompleteAsync(OrderAggregate order, string idempotencyKey,
+        public OrderConfirmedEvent? SavedOrderConfirmedEvent { get; private set; }
+
+        public Task SaveAndCompleteAsync(OrderAggregate order, OrderConfirmedEvent orderConfirmedEvent,
+            string idempotencyKey,
             CancellationToken cancellationToken)
         {
             SavedOrder = order;
+            SavedOrderConfirmedEvent = orderConfirmedEvent;
             _completedOrder = order;
             Entry = Entry! with { Status = IdempotencyStatus.Completed, OrderId = order.Id };
             return Task.CompletedTask;

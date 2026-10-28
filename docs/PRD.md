@@ -113,8 +113,10 @@ The service is successful when the team can demonstrate that:
 - Liveness and readiness health endpoints.
 - Structured logs and correlation identifiers.
 - Docker image, local multi-container execution, and registry-ready versioning.
+- Transactional `OrderConfirmed` publication through RabbitMQ.
 - Local Kubernetes deployment with three Order replicas, internal Service DNS,
   persistent SQL Server storage, and Pod recovery demonstration.
+- Helm artifact usable by the group's course EKS environment.
 - TDD workflow and automated tests.
 
 ### Out of scope
@@ -127,7 +129,7 @@ The service is successful when the team can demonstrate that:
 - Migrating old PostgreSQL order data.
 - Sharing SQL Server tables with another service.
 - Implementing the Support service itself.
-- AWS publication and production-grade cloud infrastructure.
+- Production-grade cloud hardening beyond the course EKS demonstration.
 
 ## 7. Core user journeys
 
@@ -189,7 +191,7 @@ The service is successful when the team can demonstrate that:
 | FR-018 | Return consistent RFC 9457-style problem responses for errors. | Should |
 | FR-019 | Upgrade Cart integration to a versioned, promotion-aware checkout quote after group approval. | Could |
 | FR-020 | After commit, send the persisted `OrderCreated` event to Support without failing the order when Support is unavailable. | Must |
-| FR-021 | After the authoritative Cart quote supplies a coupon, eventually publish the accepted `OrderConfirmed` contract for idempotent consumption by Promotion. | Could |
+| FR-021 | After Order commit, eventually publish the accepted `OrderConfirmed` contract for idempotent consumption by Promotion; use a null coupon until Cart supplies an authoritative value. | Must |
 
 ## 9. Non-functional requirements
 
@@ -250,7 +252,7 @@ from the client request because checkout data must be obtained from Cart.
 
 | Risk | Impact | Mitigation |
 | --- | --- | --- |
-| Current Cart snapshot is not versioned and coupon is query-only | Order cannot safely consume a coupon or prove the cart did not change | Keep coupon out of Order until Cart provides a persisted checkout quote |
+| Current Cart snapshot is not versioned and coupon is query-only | Order cannot safely consume a non-null coupon or prove the cart did not change | Publish a null-coupon event now; keep non-null coupon out until Cart provides a persisted checkout quote |
 | Current Cart has no safe consume/version operation | Clearing may remove newly added products | Do not auto-clear in the interim implementation |
 | Product operations are not idempotent | Retries may duplicate stock changes | Require operation IDs and disable blind POST retries |
 | Compensation fails | Stock and order state diverge | Structured alert, persisted recovery record, manual/retry procedure |
@@ -269,6 +271,7 @@ The PRD is accepted when the group agrees that:
 - SQL Server belongs only to Order.
 - Public order behaviors and authorization rules are correct.
 - Support notification uses internal HTTP now and preserves the payload for RabbitMQ later.
+- OrderConfirmed is persisted transactionally and delivered to RabbitMQ at least once.
 - Docker and TDD deliverables match the course expectations.
 
 ## 15. Open group decisions

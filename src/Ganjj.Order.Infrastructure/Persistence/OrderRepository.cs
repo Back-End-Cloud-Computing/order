@@ -1,4 +1,6 @@
 using Ganjj.Order.Application.Abstractions;
+using Ganjj.Order.Application.Checkout;
+using Ganjj.Order.Infrastructure.Messaging;
 using Microsoft.EntityFrameworkCore;
 using OrderAggregate = Ganjj.Order.Domain.Orders.Order;
 
@@ -48,11 +50,21 @@ internal sealed class OrderRepository(OrderDbContext dbContext) : IOrderReposito
 
     public async Task SaveAndCompleteAsync(
         OrderAggregate order,
+        OrderConfirmedEvent orderConfirmedEvent,
         string idempotencyKey,
         CancellationToken cancellationToken)
     {
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         dbContext.Orders.Add(order);
+        dbContext.OutboxMessages.Add(new OutboxMessage
+        {
+            Id = orderConfirmedEvent.EventId,
+            EventType = "OrderConfirmed",
+            Payload = OrderConfirmedSerializer.Serialize(orderConfirmedEvent),
+            CorrelationId = orderConfirmedEvent.CorrelationId,
+            OccurredAt = orderConfirmedEvent.OccurredAt,
+            NextAttemptAt = orderConfirmedEvent.OccurredAt
+        });
         var request = await dbContext.IdempotencyRequests
             .SingleAsync(value => value.Key == idempotencyKey, cancellationToken);
         request.Status = IdempotencyStatus.Completed;

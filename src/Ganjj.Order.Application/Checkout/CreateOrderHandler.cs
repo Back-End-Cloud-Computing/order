@@ -56,6 +56,7 @@ public sealed class CreateOrderHandler(
 
             var orderId = identifiers.NewId();
             var orderCreatedEventId = identifiers.NewId();
+            var orderConfirmedEventId = identifiers.NewId();
             var items = cart.Items.Select(item => OrderItem.Create(
                 identifiers.NewId(),
                 orderId,
@@ -88,7 +89,15 @@ public sealed class CreateOrderHandler(
                 now,
                 orderCreatedEventId: orderCreatedEventId);
 
-            await repository.SaveAndCompleteAsync(order, command.IdempotencyKey, cancellationToken);
+            var orderConfirmedEvent = new OrderConfirmedEvent(
+                orderConfirmedEventId,
+                order.CreatedAt,
+                order.Id,
+                null,
+                order.Items.Select(item => new OrderConfirmedItem(item.ProductId, item.Quantity)).ToList(),
+                correlationId);
+            await repository.SaveAndCompleteAsync(
+                order, orderConfirmedEvent, command.IdempotencyKey, cancellationToken);
             await TryNotifySupportAsync(order, correlationId, cancellationToken);
             return CreateOrderResult.From(order);
         }

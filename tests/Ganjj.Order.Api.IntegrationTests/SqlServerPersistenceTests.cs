@@ -1,3 +1,5 @@
+using System.Text.Json;
+using Ganjj.Order.Application.Checkout;
 using Ganjj.Order.Domain.Orders;
 using Ganjj.Order.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -71,6 +73,44 @@ public sealed class SqlServerPersistenceTests : IAsyncLifetime
         dbContext.Orders.Add(second);
 
         await Assert.ThrowsAsync<DbUpdateException>(() => dbContext.SaveChangesAsync());
+    }
+
+    [Fact]
+    public async Task Checkout_WhenCompleted_ShouldPersistOrderAndOrderConfirmedInSameTransaction()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var order = CreateOrder(Guid.NewGuid(), Guid.NewGuid());
+        var integrationEvent = new OrderConfirmedEvent(
+            Guid.NewGuid(),
+            now,
+            order.Id,
+            null,
+            [new OrderConfirmedItem("sku-7", 1)],
+            "correlation-123");
+
+        await using (var writeContext = new OrderDbContext(_options))
+        {
+            var repository = new OrderRepository(writeContext);
+            Assert.True(await repository.TryStartAsync(
+                "checkout-outbox-key", "request-hash", order.CustomerId, now, CancellationToken.None));
+            await repository.SaveAndCompleteAsync(
+                order, integrationEvent, "checkout-outbox-key", CancellationToken.None);
+        }
+
+        await using var readContext = new OrderDbContext(_options);
+        Assert.Equal(1, await readContext.Orders.CountAsync(value => value.Id == order.Id));
+        var outbox = await readContext.OutboxMessages.SingleAsync(value => value.Id == integrationEvent.EventId);
+        Assert.Equal("OrderConfirmed", outbox.EventType);
+        Assert.Equal("correlation-123", outbox.CorrelationId);
+        Assert.Null(outbox.PublishedAt);
+        using var payload = JsonDocument.Parse(outbox.Payload);
+        Assert.Equal(1, payload.RootElement.GetProperty("schema_version").GetInt32());
+        Assert.Equal("OrderConfirmed", payload.RootElement.GetProperty("event_type").GetString());
+        Assert.Equal(order.Id, payload.RootElement.GetProperty("order_id").GetGuid());
+        Assert.Equal(JsonValueKind.Null, payload.RootElement.GetProperty("coupon_code").ValueKind);
+        Assert.Equal("sku-7", payload.RootElement.GetProperty("items")[0].GetProperty("product_id").GetString());
+        Assert.False(payload.RootElement.TryGetProperty("customer_email", out _));
+        Assert.False(payload.RootElement.TryGetProperty("price", out _));
     }
 
     private static OrderAggregate CreateOrder(Guid orderId, Guid eventId) =>

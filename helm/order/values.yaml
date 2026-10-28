@@ -29,6 +29,16 @@ database:
 apiDocs:
   enabled: true
 
+rabbitMq:
+  enabled: true
+  host: rabbitmq
+  port: 5672
+  existingSecret: rabbitmq-credentials
+  usernameKey: username
+  passwordKey: password
+  exchange: ganjj.orders
+  routingKey: order.confirmed
+
 resources:
   requests:
     cpu: 100m

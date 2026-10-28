@@ -9,6 +9,7 @@ public sealed class OrderDbContext(DbContextOptions<OrderDbContext> options) : D
     public DbSet<OrderAggregate> Orders => Set<OrderAggregate>();
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
     internal DbSet<IdempotencyRequest> IdempotencyRequests => Set<IdempotencyRequest>();
+    internal DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

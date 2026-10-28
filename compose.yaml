@@ -1,4 +1,18 @@
 services:
+  rabbitmq:
+    image: rabbitmq:4.1-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-ganjj}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-Ganjj_Rabbit_2026!}
+    ports:
+      - "56720:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
     environment:
@@ -30,12 +44,21 @@ services:
       Services__Internal__Secret: ${INTERNAL_SERVICE_SECRET:-ganjj-compose-internal-secret-change-me}
       Database__ApplyMigrations: "true"
       ApiDocs__Enabled: "true"
+      RabbitMq__Enabled: "true"
+      RabbitMq__HostName: rabbitmq
+      RabbitMq__Port: "5672"
+      RabbitMq__UserName: ${RABBITMQ_USERNAME:-ganjj}
+      RabbitMq__Password: ${RABBITMQ_PASSWORD:-Ganjj_Rabbit_2026!}
+      RabbitMq__Exchange: ganjj.orders
+      RabbitMq__RoutingKey: order.confirmed
     ports:
       - "3004:8080"
     volumes:
       - ${JWT_PUBLIC_KEY_PATH:-./public.pem}:/app/keys/public.pem:ro
     depends_on:
       sqlserver:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
 
 volumes:
