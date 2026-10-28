@@ -350,8 +350,8 @@ compensate the completed order. RabbitMQ can later transport this same payload.
 
 ## 9. RabbitMQ `OrderConfirmed` contract with Promotion
 
-Status: Accepted in Order and Promotion; publisher and consumer implementation
-remain separate follow-up work.
+Status: Accepted and implemented independently in Order and Promotion; the
+shared-cluster end-to-end check remains pending.
 
 The shared names use English, matching the group's payload convention. The
 earlier Portuguese proposal `pedido.confirmado` is replaced by:
@@ -406,10 +406,11 @@ Rules:
   operationally visible instead of looping forever.
 - No customer identity, e-mail, address, price, or other personal data is sent.
 
-Implementation dependency: the current Order Cart adapter does not receive or
-persist the coupon code. The publisher stays disabled until the authoritative
-Cart checkout quote provides `coupon_code`; inventing or accepting the coupon
-from the public Order request is forbidden.
+The current Order Cart adapter does not receive or persist a coupon code, so the
+publisher emits `coupon_code: null`. This is an accepted no-op in Promotion and
+keeps the RabbitMQ integration functional. A non-null coupon remains deferred
+until an authoritative Cart quote provides a consistent coupon and total;
+inventing or accepting it from the public Order request is forbidden.
 
 ## 10. Contract freeze checklist
 
@@ -423,7 +424,8 @@ from the public Order request is forbidden.
 - [x] Gateway header forwarding is verified.
 - [x] Support HTTP payload, shared secret, correlation ID, and non-blocking failure behavior are covered by tests.
 - [x] RabbitMQ `OrderConfirmed` names, payload, delivery, and idempotency contract match Promotion.
-- [ ] Order publisher and Promotion consumer pass duplicate/redelivery tests.
+- [x] Order publisher and Promotion consumer have independent delivery, duplicate, and redelivery tests.
+- [ ] Order and Promotion pass the shared-cluster end-to-end RabbitMQ check.
 - [ ] Success and each named error have JSON examples.
 - [ ] Order consumer contract tests pass against provider examples.
 - [ ] Real cross-service smoke checkout succeeds before final presentation.

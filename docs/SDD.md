@@ -3,7 +3,7 @@
 Status: Draft for technical review  
 Target runtime: .NET 10 / ASP.NET Core  
 Database: Microsoft SQL Server  
-Last updated: 2026-09-16
+Last updated: 2026-10-28
 
 ## 1. Architecture objectives
 
@@ -18,7 +18,8 @@ of cloud-native practices:
 - reproducible and versioned images;
 - failure handling across service boundaries;
 - automated tests written with TDD;
-- a reproducible local Kubernetes deployment without AWS publication.
+- a reproducible local Kubernetes deployment and a portable Helm artifact for
+  the group's required EKS demonstration.
 
 The design intentionally avoids production-scale complexity that does not improve
 the academic demonstration.
@@ -52,6 +53,7 @@ the academic demonstration.
 | API description | Built-in ASP.NET Core OpenAPI + Scalar | Generated contract plus interactive API visualization |
 | Errors | Problem Details | Consistent machine-readable API errors |
 | HTTP dependencies | Typed `HttpClient` clients | Dependency injection, timeout, and resilience policies |
+| Messaging | RabbitMQ direct exchange + transactional SQL outbox | At-least-once integration without a distributed transaction |
 | DTO mapping | Manual mappings and EF Core `Select` projections | Keeps domain/snapshot decisions explicit and avoids an unnecessary mapper dependency |
 | Tests | xUnit test projects and container-backed integration tests | Supports Red-Green-Refactor and real SQL semantics |
 | Packaging | Multi-stage Docker image | Small runtime image and reproducible build |
@@ -71,15 +73,15 @@ flowchart LR
     Cart --> Product[Product Service<br/>MongoDB]
     Cart --> Promotion[Promotion Service<br/>MySQL]
     Order --> Product
-    Order -. future OrderConfirmed .-> Promotion
+    Order -->|OrderConfirmed via RabbitMQ| Promotion
     Order --> Sql[(Order SQL Server)]
     Order -->|post-commit internal HTTP| Support[Support Microservice]
 ```
 
 Only Order connects to the Order SQL Server database. Arrows between services are
 HTTP for N2. Support may later consume the same `OrderCreated` payload through
-RabbitMQ. Promotion has a separate accepted `OrderConfirmed` RabbitMQ contract
-whose publisher and consumer are not implemented yet.
+RabbitMQ. Promotion consumes the implemented `OrderConfirmed` RabbitMQ contract;
+the full shared-cluster verification remains an integration task.
 
 ## 5. Repository and solution structure
 
@@ -400,14 +402,16 @@ No distributed database transaction or shared schema is introduced.
   fail the order or trigger stock compensation.
 - Omit `customer_phone` until the Client service exposes a stable lookup contract.
 
-### Promotion event publisher (contract accepted, implementation pending)
+### Promotion event publisher
 
 - Durable direct exchange `ganjj.orders`, routing key `order.confirmed`, and
   Promotion-owned queue `promotion.order-confirmed`.
 - Versioned English JSON contract in `INTEGRATION-CONTRACTS.md` section 9.
 - Publish from a SQL outbox with confirms for at-least-once delivery.
-- Do not enable until the authoritative Cart quote supplies a coupon code that
-  Order persists. Never accept price or coupon data from the public Order body.
+- Persist the outbox row in the same transaction as Order and idempotency completion.
+- Claim rows with a lease so three Order replicas do not publish the same row concurrently.
+- Emit `coupon_code: null` until an authoritative Cart quote supplies a coupon
+  and consistent total. Never accept price or coupon data from the public body.
 
 ### Failure matrix
 
@@ -546,8 +550,8 @@ Inside the API container, the database hostname is `sqlserver`, never `localhost
 
 ## 17. Local Kubernetes deployment
 
-The current runtime target is Minikube on Docker Desktop. No AWS resources are
-created. `scripts/Start-Kubernetes.ps1` configures the JWT public key and local
+The local runtime target is Minikube on Docker Desktop. The same chart is also
+the deployment artifact for the course EKS environment. `scripts/Start-Kubernetes.ps1` configures the JWT public key and local
 Secret, then installs or upgrades the `helm/order` chart. The chart exposes
 image, replica count, resources, peer URLs, Gateway host metadata and optional
 local SQL Server configuration as values; credentials remain in an external
@@ -561,6 +565,10 @@ are in the `default` namespace so existing group services can use DNS names.
 The Order Pod uses `shopping-cart:3003`, `product-api:8000`, and `support:8090` as peer addresses;
 these names and ports match the Services published by the current group
 repositories.
+RabbitMQ is shared infrastructure at `rabbitmq:5672`; credentials come from
+`Secret/rabbitmq-credentials`. The bootstrap verifies both resources before
+enabling the publisher. `-DisableRabbitMqPublisher` is available only for an
+isolated Order run; events remain pending in the SQL outbox.
 
 Liveness (`/health/live`) checks the API process; readiness (`/health/ready`)
 checks SQL connectivity. SQL Server's readiness probe also runs `SELECT 1`
@@ -599,7 +607,13 @@ Proposed environment variable names:
 | `Services__Internal__Secret` | Yes initially | Internal HTTP authentication |
 | `Resilience__HttpTimeoutSeconds` | No | Dependency timeout budget |
 | `Resilience__SupportTimeoutSeconds` | No | Post-commit Support timeout, default 2 seconds |
-| `Outbox__PollIntervalSeconds` | No/future | Outbox dispatch interval when enabled |
+| `RabbitMq__Enabled` | No | Enables outbox dispatch; default false outside orchestrated environments |
+| `RabbitMq__HostName` | When enabled | Broker host, `rabbitmq` in Kubernetes/Compose |
+| `RabbitMq__Port` | No | AMQP port, default 5672 |
+| `RabbitMq__UserName` | When enabled | Broker user from an external Secret |
+| `RabbitMq__Password` | When enabled | Broker password from an external Secret |
+| `RabbitMq__Exchange` | No | Durable direct exchange, `ganjj.orders` |
+| `RabbitMq__RoutingKey` | No | Routing key, `order.confirmed` |
 
 Secrets are represented in `.env.example` only by placeholders.
 
@@ -616,7 +630,8 @@ Planned GitHub Actions pipeline:
 7. smoke-test the built image and health endpoint;
 8. on an approved version tag, publish an explicitly versioned image.
 
-No AWS deployment stage or credentials are needed for the local course demo.
+The local workflow needs no AWS credentials. EKS deployment is performed by the
+group's shared delivery workflow, not by the local bootstrap script.
 
 ## 21. Architecture decisions
 

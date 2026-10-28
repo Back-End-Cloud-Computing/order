@@ -11,7 +11,9 @@ crie:
 - `Secret/order-secrets` com `connection-string`, `sqlserver-sa-password` e
   `internal-secret`;
 - `ConfigMap/order-jwt-public-key` com a chave `public.pem` exportada pelo
-  Authorization.
+  Authorization;
+- `Secret/rabbitmq-credentials` com `username` e `password`, além do
+  `Service/rabbitmq`, quando `rabbitMq.enabled=true`.
 
 O script `scripts/Start-Kubernetes.ps1` já cria esses dois recursos com valores
 locais seguros, instala o release e chama `scripts/Test-Kubernetes.ps1` para
@@ -46,6 +48,7 @@ Valores comuns:
 | ConfigMap JWT existente | `--set existingJwtConfigMap=...` |
 | Banco externo | `--set sqlServer.enabled=false` e Secret com outra connection string |
 | URLs dos pares | `--set services.cartBaseUrl=...` (idem Product e Support) |
+| Order isolado, sem broker | `--set rabbitMq.enabled=false` (eventos ficam no outbox) |
 
 `gateway.host` documenta o host público esperado e aparece nas instruções após
 a instalação. Ele não cria um Ingress. O roteamento de `api.ganjj.local`

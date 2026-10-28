@@ -23,3 +23,7 @@ _Avoid_: Client cart, request items
 **Stock Operation**:
 An idempotent Product command identified by `Idempotency-Key` that either decrements stock or restores a previous decrement.
 _Avoid_: Reservation
+
+**Order Confirmed**:
+A versioned integration fact emitted after an Order is durably created. It identifies the Order and its Product quantities; its coupon code can be absent.
+_Avoid_: Order request, promotion command

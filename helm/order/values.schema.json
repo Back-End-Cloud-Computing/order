@@ -30,6 +30,20 @@
         "image": { "type": "string", "minLength": 1 },
         "storage": { "type": "string", "minLength": 1 }
       }
+    },
+    "rabbitMq": {
+      "type": "object",
+      "required": ["enabled", "host", "port", "existingSecret", "usernameKey", "passwordKey", "exchange", "routingKey"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "host": { "type": "string", "minLength": 1 },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "existingSecret": { "type": "string", "minLength": 1 },
+        "usernameKey": { "type": "string", "minLength": 1 },
+        "passwordKey": { "type": "string", "minLength": 1 },
+        "exchange": { "type": "string", "minLength": 1 },
+        "routingKey": { "type": "string", "minLength": 1 }
+      }
     }
   }
 }

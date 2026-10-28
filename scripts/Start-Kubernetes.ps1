@@ -1,6 +1,7 @@
 param(
     [switch]$UseLocalImage,
     [switch]$SkipSmokeTest,
+    [switch]$DisableRabbitMqPublisher,
     [string]$SqlServerImage
 )
 
@@ -164,6 +165,24 @@ if ($UseLocalImage) {
     }
 }
 
+if (-not $DisableRabbitMqPublisher) {
+    $rabbitService = & kubectl -n default get service rabbitmq -o name --ignore-not-found 2>$null
+    if ($LASTEXITCODE -ne 0) { throw 'Falha ao consultar o Service rabbitmq.' }
+    if ([string]::IsNullOrWhiteSpace($rabbitService)) {
+        throw 'Service/rabbitmq nao encontrado. Instale a infraestrutura RabbitMQ compartilhada ou use -DisableRabbitMqPublisher para executar o Order isoladamente; os eventos permanecerao no outbox.'
+    }
+
+    $rabbitSecretJson = & kubectl -n default get secret rabbitmq-credentials -o json --ignore-not-found
+    if ($LASTEXITCODE -ne 0) { throw 'Falha ao consultar o Secret rabbitmq-credentials.' }
+    if ([string]::IsNullOrWhiteSpace($rabbitSecretJson)) {
+        throw 'Secret/rabbitmq-credentials nao encontrado. Ele deve conter as chaves username e password.'
+    }
+    $rabbitSecret = $rabbitSecretJson | ConvertFrom-Json
+    if ($null -eq $rabbitSecret.data.username -or $null -eq $rabbitSecret.data.password) {
+        throw 'Secret/rabbitmq-credentials precisa conter as chaves username e password.'
+    }
+}
+
 $helmArguments = @(
     'upgrade', '--install', 'order', $chartPath,
     '--namespace', 'default',
@@ -181,6 +200,9 @@ if (-not [string]::IsNullOrWhiteSpace($SqlServerImage)) {
     $helmArguments += @(
         '--set-string', "sqlServer.image=$SqlServerImage"
     )
+}
+if ($DisableRabbitMqPublisher) {
+    $helmArguments += @('--set', 'rabbitMq.enabled=false')
 }
 
 & $helmCommand.Source @helmArguments

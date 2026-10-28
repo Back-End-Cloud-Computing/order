@@ -318,10 +318,10 @@ Production outcome:
 
 - update use case and optimistic concurrency behavior.
 
-### Cycle 11 - Post-commit Support notification and future outbox
+### Cycle 11 - Post-commit Support notification and transactional outbox
 
-The direct HTTP `OrderCreated` notification is active for N2. A durable outbox
-remains deferred until RabbitMQ or safe Cart quote consumption is approved.
+The direct HTTP `OrderCreated` notification remains active for Support. A durable
+SQL outbox publishes `OrderConfirmed` to RabbitMQ for Promotion.
 
 Tests:
 
@@ -330,18 +330,17 @@ Tests:
 - the JWT e-mail and correlation ID reach the Support contract;
 - Support deduplicates repeated delivery of the same event UUID.
 
-Future outbox tests:
+Outbox tests:
 
-- committed Cart-consume action is eventually dispatched;
+- completed checkout persists Order and event atomically;
 - successful dispatch marks the message processed;
 - transient failure increments attempts and remains pending;
-- repeated dispatch uses the same quote/operation identifier;
-- poison messages stop retrying indefinitely and expose last error.
+- repeated dispatch uses the same event identifier;
+- the real broker receives persistent JSON with the agreed AMQP properties.
 
 Production outcome:
 
-- current post-commit HTTP notifier; later, a background outbox dispatcher and
-  Cart consume behavior.
+- current post-commit HTTP notifier plus background RabbitMQ outbox dispatcher.
 
 ### Cycle 12 - Health, configuration, and containers
 

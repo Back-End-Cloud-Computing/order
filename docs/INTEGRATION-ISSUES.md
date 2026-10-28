@@ -1,7 +1,7 @@
 # Pendências de integração entre os microsserviços GANJJ
 
 Status: Em discussão pelo grupo  
-Última atualização: 2026-09-16
+Última atualização: 2026-10-28
 Idioma: Português (PT-BR)
 
 ## 1. Objetivo
@@ -24,7 +24,7 @@ resolvida.
 | INT-006 | Autenticação interna | Gateway e serviços | Pendente | Não |
 | INT-007 | Convenção de nomes e rotas | Todos os serviços | Parcialmente decidido | Não |
 | INT-008 | Microsserviço de suporte | Eduardo / Order | Resolvido para N2 | Não |
-| PROMO-001 | Evento de pedido confirmado | Order e Promotion | Contrato resolvido; código pendente | Sim para RabbitMQ |
+| PROMO-001 | Evento de pedido confirmado | Order e Promotion | Código nos dois serviços; E2E compartilhado pendente | Sim para validação final |
 
 ## 3. Pendências detalhadas
 
@@ -167,11 +167,14 @@ a fila do Promotion é `promotion.order-confirmed`. O payload versionado usa
 nomes em inglês e contém `event_id`, `order_id`, `coupon_code`, itens e
 `correlation_id`. A idempotência do consumidor é por `order_id`.
 
-**Ainda pendente:** o Order atual consome o contrato antigo do Cart e não recebe
-nem salva o cupom. O publisher com outbox só pode ser habilitado depois que a
-cotação autoritativa do Cart fornecer `coupon_code`. Do outro lado, o Promotion
-ainda precisa implementar o consumidor e o registro idempotente. O Order não
-deve aceitar cupom diretamente no JSON público para contornar esse bloqueio.
+**Implementado:** Promotion já possui consumidor idempotente e o Order grava o
+evento no outbox na mesma transação do pedido, publicando com confirmação. Como
+o Cart ainda não entrega uma cotação autoritativa com cupom e total coerentes,
+o Order publica `coupon_code: null`, que o Promotion reconhece como no-op.
+
+**Ainda pendente:** validar o fluxo completo no cluster compartilhado e evoluir
+o Cart antes de enviar cupom não nulo. O Order não deve aceitar cupom diretamente
+no JSON público para contornar esse bloqueio.
 
 **Responsáveis:** Rodrigo Alves (publisher/outbox) e Lucas Stopinski
 (consumer/idempotência).
@@ -188,4 +191,5 @@ deve aceitar cupom diretamente no JSON público para contornar esse bloqueio.
 - [ ] Decidir a estratégia de nomes das rotas públicas e internas.
 - [x] Escolher o microsserviço de suporte e congelar o contrato HTTP da N2.
 - [x] Fechar o contrato RabbitMQ `OrderConfirmed` com o Promotion.
-- [ ] Implementar e testar publisher/outbox e consumer idempotente.
+- [x] Implementar e testar publisher/outbox e consumer idempotente separadamente.
+- [ ] Validar Order -> RabbitMQ -> Promotion no cluster compartilhado.

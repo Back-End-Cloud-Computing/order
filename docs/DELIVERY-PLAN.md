@@ -130,15 +130,18 @@ Demo aligned with professor's material:
 6. tag and push image;
 7. pull/run on another environment.
 
-### M7 - Local Kubernetes demonstration
+### M7 - Kubernetes and EKS demonstration
 
-AWS publication was removed from scope by the course deployment constraint.
+The earlier local-only decision was superseded when the official course rubric
+made EKS and functional RabbitMQ part of the required evidence.
 Scope:
 
-- Minikube cluster on Docker Desktop;
+- Minikube cluster on Docker Desktop for repeatable local validation;
+- the same Helm artifact deployed by the group's shared EKS workflow;
 - versioned Deployment/Service YAML with three Order replicas;
 - one SQL Server StatefulSet with persistent storage and Service DNS;
 - Kubernetes Secret for credentials and ConfigMap for the JWT public key;
+- shared RabbitMQ Service/Secret and functional OrderConfirmed delivery;
 - Helm chart with externalized image, replicas, resources, peer URLs and
   Gateway host metadata, without a direct Order Ingress;
 - liveness/readiness/startup probes and local port-forward;
@@ -264,6 +267,6 @@ Scope:
 
 - Whether Docker Hub publication is additionally required for the final demo.
 - Final group gateway/Ingress approach for local Kubernetes.
-- Implement publisher/consumer for the accepted Promotion `OrderConfirmed` contract.
+- Run the shared-cluster end-to-end check for the implemented Promotion `OrderConfirmed` flow.
 
 These decisions must close before M7/M8, not before M1-M4.

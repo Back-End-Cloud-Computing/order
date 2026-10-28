@@ -23,7 +23,9 @@ Pré-requisitos: Docker Desktop com containers Linux, Minikube, `kubectl`, Helm
 3 ou superior e a
 chave pública RS256 do Authorization em `public.pem` (raiz do projeto). A chave
 privada não deve ser copiada. Reserve pelo menos 4 CPUs, 6 GiB para o Minikube
-e espaço para o volume de 8 GiB do SQL Server.
+e espaço para o volume de 8 GiB do SQL Server. Na execução integrada, o cluster
+também deve ter `Service/rabbitmq` e `Secret/rabbitmq-credentials` com as chaves
+`username` e `password`.
 
 ```powershell
 # Opcional: defina INTERNAL_SERVICE_SECRET com o valor combinado pelo grupo.
@@ -70,6 +72,10 @@ Para repetir somente a validação depois que o ambiente já estiver instalado:
 Use `-SkipSmokeTest` no bootstrap apenas quando quiser diagnosticar a instalação
 manualmente.
 
+Para executar somente o Order antes de instalar a infraestrutura compartilhada,
+use `-DisableRabbitMqPublisher`. O checkout continua gravando os eventos no
+outbox; eles serão publicados quando o componente for habilitado novamente.
+
 ```powershell
 kubectl -n default get pods,deployments,statefulsets,services -l app.kubernetes.io/part-of=ganjj
 kubectl -n default port-forward service/order 3004:8080
@@ -108,7 +114,8 @@ réplicas.
 `default`. As URLs de Cart, Product e Support no manifesto pressupõem Services
 `shopping-cart:3003`, `product-api:8000` e `support:8090` nesse mesmo namespace; sem Cart e Product,
 health/Scalar funcionam, mas o checkout integrado não. Esta implantação é
-exclusivamente local, sem AWS. O volume do SQL Server é persistente; não apague
+local; o mesmo chart serve como artefato para o ambiente EKS compartilhado. O
+volume do SQL Server é persistente; não apague
 o PVC para reiniciar a apresentação.
 
 Após confirmar o pedido, o Order tenta enviar `OrderCreated` ao Support. A falha
@@ -131,7 +138,8 @@ docker compose up --build
 A API estará em `http://localhost:3004`, a documentação Scalar em
 `http://localhost:3004/scalar/v1` e os health checks em `/health`,
 `/health/live` e `/health/ready`. As métricas ficam em `/metrics`. Ajuste os segredos do `.env` antes de
-compartilhar ou implantar.
+compartilhar ou implantar. O Compose também inicia RabbitMQ em `localhost:56720`
+e sua interface de administração em `http://localhost:15672`.
 
 ## Executar e testar localmente
 
@@ -151,7 +159,7 @@ claims `sub`, `email`, `role` e `typ` do Authorization, além do header
 ## Estado
 
 `Em implementação` - fundação, domínio, persistência, API, autenticação,
-integrações HTTP, migrations, Docker, Kubernetes local e testes automatizados
+integrações HTTP, outbox/RabbitMQ, migrations, Docker, Kubernetes e testes automatizados
 disponíveis. Os contratos atuais de leitura do Cart e estoque do Product estão
 implementados; cotação versionada, consumo seguro do carrinho e cupom ainda
 dependem de evolução conjunta dos serviços.

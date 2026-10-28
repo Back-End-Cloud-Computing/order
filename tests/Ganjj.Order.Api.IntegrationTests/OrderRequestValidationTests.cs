@@ -190,6 +190,7 @@ public sealed class OrderRequestValidationTests : IDisposable
 
         public Task SaveAndCompleteAsync(
             OrderAggregate order,
+            OrderConfirmedEvent orderConfirmedEvent,
             string idempotencyKey,
             CancellationToken cancellationToken)
         {
