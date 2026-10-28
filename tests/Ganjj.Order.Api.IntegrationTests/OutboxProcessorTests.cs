@@ -43,6 +43,22 @@ public sealed class OutboxProcessorTests
         Assert.Empty(store.Published);
     }
 
+    [Fact]
+    public async Task Process_WhenLeaseWasReclaimed_ShouldNotPublishOrChangeMessage()
+    {
+        var message = Message(attemptCount: 1);
+        var store = new FakeStore(message) { OwnsLease = false };
+        var publisher = new FakePublisher();
+        var processor = Create(store, publisher);
+
+        var processed = await processor.ProcessAsync(CancellationToken.None);
+
+        Assert.Equal(1, processed);
+        Assert.Empty(publisher.Messages);
+        Assert.Empty(store.Published);
+        Assert.Empty(store.Failed);
+    }
+
     private static OutboxProcessor Create(FakeStore store, FakePublisher publisher) =>
         new(store, publisher, new FixedTimeProvider(), Options.Create(new RabbitMqOptions
         {
@@ -55,6 +71,7 @@ public sealed class OutboxProcessorTests
 
     private sealed class FakeStore(params OutboxEnvelope[] messages) : IOutboxStore
     {
+        public bool OwnsLease { get; init; } = true;
         public List<OutboxEnvelope> Published { get; } = [];
         public List<FailedMessage> Failed { get; } = [];
 
@@ -64,6 +81,12 @@ public sealed class OutboxProcessorTests
             int batchSize,
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<OutboxEnvelope>>(messages);
+
+        public Task<bool> RenewLeaseAsync(
+            OutboxEnvelope message,
+            DateTimeOffset now,
+            TimeSpan lease,
+            CancellationToken cancellationToken) => Task.FromResult(OwnsLease);
 
         public Task MarkPublishedAsync(
             OutboxEnvelope message,

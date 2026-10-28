@@ -24,6 +24,20 @@ internal sealed class OutboxProcessor(
         {
             try
             {
+                var now = timeProvider.GetUtcNow();
+                var ownsLease = await store.RenewLeaseAsync(
+                    message,
+                    now,
+                    TimeSpan.FromSeconds(settings.LeaseSeconds),
+                    cancellationToken);
+                if (!ownsLease)
+                {
+                    logger.LogWarning(
+                        "OrderConfirmed event {EventId} was reclaimed by another replica before publishing.",
+                        message.Id);
+                    continue;
+                }
+
                 await publisher.PublishAsync(message, cancellationToken);
                 await store.MarkPublishedAsync(message, timeProvider.GetUtcNow(), cancellationToken);
             }

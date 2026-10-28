@@ -52,6 +52,21 @@ internal sealed class OutboxStore(OrderDbContext dbContext) : IOutboxStore
         return claimed;
     }
 
+    public async Task<bool> RenewLeaseAsync(
+        OutboxEnvelope message,
+        DateTimeOffset now,
+        TimeSpan lease,
+        CancellationToken cancellationToken)
+    {
+        var updated = await dbContext.OutboxMessages
+            .Where(value => value.Id == message.Id &&
+                            value.LockId == message.LockId &&
+                            value.PublishedAt == null)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(value => value.LockedUntil, now.Add(lease)), cancellationToken);
+        return updated == 1;
+    }
+
     public Task MarkPublishedAsync(
         OutboxEnvelope message,
         DateTimeOffset now,

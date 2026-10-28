@@ -16,6 +16,12 @@ internal interface IOutboxStore
         int batchSize,
         CancellationToken cancellationToken);
 
+    Task<bool> RenewLeaseAsync(
+        OutboxEnvelope message,
+        DateTimeOffset now,
+        TimeSpan lease,
+        CancellationToken cancellationToken);
+
     Task MarkPublishedAsync(OutboxEnvelope message, DateTimeOffset now, CancellationToken cancellationToken);
 
     Task MarkFailedAsync(
