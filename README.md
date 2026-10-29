@@ -118,10 +118,11 @@ local; o mesmo chart serve como artefato para o ambiente EKS compartilhado. O
 volume do SQL Server é persistente; não apague
 o PVC para reiniciar a apresentação.
 
-Após confirmar o pedido, o Order tenta enviar `OrderCreated` ao Support. A falha
-ou demora do Support é apenas registrada em log e não desfaz o pedido. Para a
-demonstração de e-mail no Mailpit, use o mesmo `INTERNAL_SERVICE_SECRET` nos dois
-serviços.
+Ao confirmar o pedido, o Order grava `OrderCreated` no outbox e o publica para o
+Support pelo RabbitMQ. A chamada HTTP interna permanece como fallback
+best-effort com o mesmo `event_id`; o Support elimina duplicidades entre os dois
+transportes. Falhas não desfazem o pedido. Para a demonstração de e-mail no
+Mailpit, use o mesmo `INTERNAL_SERVICE_SECRET` nos dois serviços.
 
 ## Executar com Docker
 
@@ -166,4 +167,9 @@ dependem de evolução conjunta dos serviços.
 
 ### Support OrderCreated outbox
 
-With RabbitMq:Enabled=true, the existing outbox also publishes OrderCreated to ganjj.orders / order.created. HTTP remains enabled as a best-effort fallback using the same stable event_id; Support deduplicates both transports. [Contract](docs/contrato-api.md) and [decision](docs/adr/0012-publish-support-order-created-from-outbox.md). OrderConfirmed for Promotion is preserved.
+Com `RabbitMq:Enabled=true`, o outbox publica `OrderCreated` em
+`ganjj.orders` / `order.created`. HTTP permanece habilitado como fallback
+best-effort usando o mesmo `event_id`, e o Support deduplica os dois transportes.
+Essa entrega não altera o `OrderConfirmed` enviado ao Promotion. Consulte o
+[contrato](docs/contrato-api.md) e a
+[decisão](docs/adr/0012-publish-support-order-created-from-outbox.md).

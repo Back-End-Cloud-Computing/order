@@ -314,9 +314,21 @@ removed. Order adds the received correlation ID to its structured logging scope.
 
 Owner: Support (Eduardo)
 
-Status: Accepted and implemented over internal HTTP for N2
+Status: Accepted and implemented through RabbitMQ, with internal HTTP as a
+best-effort fallback. The AMQP path was validated end to end with Order, SQL
+Server, RabbitMQ, Support, and Mailpit on 29 October 2026.
 
-After the order transaction commits, Order calls:
+Order persists `OrderCreated` in its SQL outbox in the same transaction as the
+order, its idempotency result, and `OrderConfirmed`. The outbox publisher sends
+the event with these broker names:
+
+- durable direct exchange: `ganjj.orders`;
+- routing key: `order.created`;
+- Support queue: `support.order-created`;
+- persistent message with AMQP `type=OrderCreated`, stable `message_id`, and
+  the correlation ID when present.
+
+After the order transaction commits, Order also attempts the HTTP fallback:
 
 ```http
 POST http://support:8090/internal/notifications
@@ -342,11 +354,19 @@ The body is the definitive `OrderCreated` payload:
 }
 ```
 
-`event_id` is a UUID stored with the order and is reused if the event is ever
-redelivered. `customer_email` comes from the JWT `email` claim. The optional
-`customer_phone` is omitted until Client exposes a stable contract. Support
-failures and the two-second timeout are logged after commit and never fail or
-compensate the completed order. When RabbitMq:Enabled is true, Order also publishes this same payload to the durable direct exchange ganjj.orders with routing key order.created. The stable OrderCreated event is persisted in the same SQL transaction as the Order and OrderConfirmed event. Both transports share one serializer and the same event_id; Support deduplicates them. The canonical HTTP/AMQP Support payload is mirrored byte-for-byte in [contrato-api.md](contrato-api.md).
+`event_id` is a UUID stored with the order and becomes the AMQP `message_id`. It
+is reused by both transports and on redelivery, so Support accepts the first
+delivery and does not send a second notification for the duplicate.
+`customer_email` comes from the JWT `email` claim. The optional
+`customer_phone` is omitted until Client exposes a stable contract. If the
+e-mail claim is missing, Order does not create the Support event.
+
+The HTTP request uses the shared internal secret and has a two-second timeout.
+HTTP or broker failures never fail or compensate the completed order: HTTP is
+logged as a failed fallback, while an unpublished AMQP event remains in the
+outbox for retry. Both transports use the same serializer. The canonical
+HTTP/AMQP payload is mirrored byte-for-byte in
+[contrato-api.md](contrato-api.md).
 
 ## 9. RabbitMQ `OrderConfirmed` contract with Promotion
 
@@ -422,7 +442,8 @@ inventing or accepting it from the public Order request is forbidden.
 - [x] Order accepts the Authorization contract through ADR 0006 and local consumer tests.
 - [x] A real provider access token passes the cross-service smoke test and its refresh token is rejected.
 - [x] Gateway header forwarding is verified.
-- [x] Support HTTP payload, shared secret, correlation ID, and non-blocking failure behavior are covered by tests.
+- [x] Support HTTP/AMQP payload, shared secret, correlation ID, deduplication, and non-blocking failure behavior are covered by tests.
+- [x] Order, RabbitMQ, and Support passed the real `OrderCreated` to Mailpit check with HTTP unavailable.
 - [x] RabbitMQ `OrderConfirmed` names, payload, delivery, and idempotency contract match Promotion.
 - [x] Order publisher and Promotion consumer have independent delivery, duplicate, and redelivery tests.
 - [ ] Order and Promotion pass the shared-cluster end-to-end RabbitMQ check.
