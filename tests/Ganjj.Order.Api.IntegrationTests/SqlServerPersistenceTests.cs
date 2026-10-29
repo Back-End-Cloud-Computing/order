@@ -111,6 +111,20 @@ public sealed class SqlServerPersistenceTests : IAsyncLifetime
         Assert.Equal("sku-7", payload.RootElement.GetProperty("items")[0].GetProperty("product_id").GetString());
         Assert.False(payload.RootElement.TryGetProperty("customer_email", out _));
         Assert.False(payload.RootElement.TryGetProperty("price", out _));
+        var notification = await readContext.OutboxMessages.SingleAsync(value => value.Id == order.OrderCreatedEventId);
+        Assert.Equal(2, await readContext.OutboxMessages.CountAsync());
+        Assert.Equal("OrderCreated", notification.EventType);
+        Assert.Null(notification.PublishedAt);
+        using var supportPayload = JsonDocument.Parse(notification.Payload);
+        Assert.Equal(order.OrderCreatedEventId, supportPayload.RootElement.GetProperty("event_id").GetGuid());
+        Assert.Equal("OrderCreated", supportPayload.RootElement.GetProperty("event_type").GetString());
+        Assert.Equal(order.Id.ToString("D"), supportPayload.RootElement.GetProperty("order_id").GetString());
+        Assert.Equal(order.Code, supportPayload.RootElement.GetProperty("order_code").GetString());
+        Assert.Equal(order.CustomerId.ToString("D"), supportPayload.RootElement.GetProperty("customer_id").GetString());
+        Assert.Equal(order.CustomerEmail, supportPayload.RootElement.GetProperty("customer_email").GetString());
+        Assert.Equal(order.Total, supportPayload.RootElement.GetProperty("total").GetDecimal());
+        Assert.Equal("BRL", supportPayload.RootElement.GetProperty("currency").GetString());
+        Assert.False(supportPayload.RootElement.TryGetProperty("customer_phone", out _));
     }
 
     private static OrderAggregate CreateOrder(Guid orderId, Guid eventId) =>

@@ -163,3 +163,7 @@ integrações HTTP, outbox/RabbitMQ, migrations, Docker, Kubernetes e testes aut
 disponíveis. Os contratos atuais de leitura do Cart e estoque do Product estão
 implementados; cotação versionada, consumo seguro do carrinho e cupom ainda
 dependem de evolução conjunta dos serviços.
+
+### Support OrderCreated outbox
+
+With RabbitMq:Enabled=true, the existing outbox also publishes OrderCreated to ganjj.orders / order.created. HTTP remains enabled as a best-effort fallback using the same stable event_id; Support deduplicates both transports. [Contract](docs/contrato-api.md) and [decision](docs/adr/0012-publish-support-order-created-from-outbox.md). OrderConfirmed for Promotion is preserved.
