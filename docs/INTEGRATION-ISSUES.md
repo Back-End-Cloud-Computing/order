@@ -23,7 +23,7 @@ resolvida.
 | INT-005 | Tipos dos identificadores | Todos os serviços | Pendente | Não |
 | INT-006 | Autenticação interna | Gateway e serviços | Pendente | Não |
 | INT-007 | Convenção de nomes e rotas | Todos os serviços | Parcialmente decidido | Não |
-| INT-008 | Microsserviço de suporte | Eduardo / Order | Resolvido para N2 | Não |
+| INT-008 | Microsserviço de suporte | Eduardo / Order | Resolvido e comprovado via RabbitMQ | Não |
 | PROMO-001 | Evento de pedido confirmado | Order e Promotion | Código nos dois serviços; E2E compartilhado pendente | Sim para validação final |
 
 ## 3. Pendências detalhadas
@@ -147,15 +147,24 @@ pública por compatibilidade. O Gateway continua sendo o ponto público de entra
 
 ### INT-008 — Microsserviço de suporte
 
-**Situação atual:** o serviço Support do Eduardo foi escolhido. Para a N2, ele
-recebe o payload `OrderCreated` por HTTP interno e elimina duplicidade pelo
+**Situação atual:** o serviço Support do Eduardo foi escolhido e a integração
+está concluída. O Order grava `OrderCreated` no outbox SQL na mesma transação do
+pedido e publica na exchange `ganjj.orders`, routing key `order.created`. O
+Support consome pela fila `support.order-created` e elimina duplicidade pelo
 `event_id`.
 
-**Impacto no Order:** após confirmar a transação, o Order chama
-`POST http://support:8090/internal/notifications` com o segredo compartilhado.
-O UUID do evento fica salvo com o pedido; falha ou demora do Support gera log,
-mas não desfaz o pedido. O telefone fica ausente até existir contrato estável do
-Client. RabbitMQ poderá substituir o transporte mantendo o mesmo payload.
+**Compatibilidade:** depois do commit, o Order ainda tenta
+`POST http://support:8090/internal/notifications` com o segredo compartilhado
+como fallback best-effort. AMQP e HTTP usam o mesmo payload e o mesmo UUID, por
+isso a chegada pelos dois transportes não produz duas notificações. Falha ou
+demora do Support não desfaz o pedido; falha no broker mantém o evento no outbox
+para nova tentativa. O telefone continua ausente até existir contrato estável
+do Client.
+
+**Evidência:** em 29/10/2026, o fluxo real Order -> SQL Server -> RabbitMQ ->
+Support -> Mailpit produziu exatamente um e-mail com o fallback HTTP
+deliberadamente indisponível. Cart e Product eram fixtures nesse teste; o
+checkout completo permanece acompanhado separadamente.
 
 **Responsável:** Eduardo (Support) e Rodrigo (integração do Order).
 
@@ -189,7 +198,8 @@ no JSON público para contornar esse bloqueio.
 - [ ] Padronizar os tipos de IDs externos.
 - [ ] Padronizar autenticação e headers internos.
 - [ ] Decidir a estratégia de nomes das rotas públicas e internas.
-- [x] Escolher o microsserviço de suporte e congelar o contrato HTTP da N2.
+- [x] Escolher o microsserviço de suporte e congelar o contrato HTTP/AMQP da N2.
+- [x] Validar Order -> RabbitMQ -> Support -> Mailpit com deduplicação.
 - [x] Fechar o contrato RabbitMQ `OrderConfirmed` com o Promotion.
 - [x] Implementar e testar publisher/outbox e consumer idempotente separadamente.
 - [ ] Validar Order -> RabbitMQ -> Promotion no cluster compartilhado.
