@@ -19,6 +19,12 @@ internal sealed class RabbitMqOrderConfirmedPublisher : IOrderConfirmedPublisher
 
     public async Task PublishAsync(OutboxEnvelope message, CancellationToken cancellationToken)
     {
+        var routingKey = message.EventType switch
+        {
+            "OrderConfirmed" => options.RoutingKey,
+            "OrderCreated" => "order.created",
+            _ => throw new InvalidOperationException($"Unsupported outbox event type: {message.EventType}")
+        };
         await mutex.WaitAsync(cancellationToken);
         try
         {
@@ -33,7 +39,7 @@ internal sealed class RabbitMqOrderConfirmedPublisher : IOrderConfirmedPublisher
             };
             await channel!.BasicPublishAsync(
                 options.Exchange,
-                options.RoutingKey,
+                routingKey,
                 mandatory: true,
                 properties,
                 Encoding.UTF8.GetBytes(message.Payload),

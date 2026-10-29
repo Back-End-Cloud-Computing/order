@@ -346,7 +346,7 @@ The body is the definitive `OrderCreated` payload:
 redelivered. `customer_email` comes from the JWT `email` claim. The optional
 `customer_phone` is omitted until Client exposes a stable contract. Support
 failures and the two-second timeout are logged after commit and never fail or
-compensate the completed order. RabbitMQ can later transport this same payload.
+compensate the completed order. When RabbitMq:Enabled is true, Order also publishes this same payload to the durable direct exchange ganjj.orders with routing key order.created. The stable OrderCreated event is persisted in the same SQL transaction as the Order and OrderConfirmed event. Both transports share one serializer and the same event_id; Support deduplicates them. The canonical HTTP/AMQP Support payload is mirrored byte-for-byte in [contrato-api.md](contrato-api.md).
 
 ## 9. RabbitMQ `OrderConfirmed` contract with Promotion
 

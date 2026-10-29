@@ -20,11 +20,12 @@ public sealed class RabbitMqOrderConfirmedPublisherTests : IAsyncLifetime
 
     public async Task DisposeAsync() => await rabbitMq.DisposeAsync();
 
-    [Fact]
-    public async Task Publish_ShouldDeliverPersistentOrderConfirmedWithContractProperties()
+    [Theory]
+    [InlineData("OrderConfirmed", "order.confirmed")]
+    [InlineData("OrderCreated", "order.created")]
+    public async Task Publish_ShouldRoutePersistentEventWithContractProperties(string eventType, string routingKey)
     {
         const string exchange = "ganjj.orders";
-        const string routingKey = "order.confirmed";
         var factory = new ConnectionFactory
         {
             HostName = rabbitMq.Hostname,
@@ -47,20 +48,20 @@ public sealed class RabbitMqOrderConfirmedPublisherTests : IAsyncLifetime
             UserName = UserName,
             Password = Password,
             Exchange = exchange,
-            RoutingKey = routingKey
+            RoutingKey = "order.confirmed"
         }));
         var eventId = Guid.NewGuid();
-        const string payload = "{\"schema_version\":1,\"event_type\":\"OrderConfirmed\"}";
+        var payload = $"{{\"event_type\":\"{eventType}\"}}";
 
         await publisher.PublishAsync(
-            new OutboxEnvelope(eventId, "OrderConfirmed", payload, "correlation-123", 1, Guid.NewGuid()),
+            new OutboxEnvelope(eventId, eventType, payload, "correlation-123", 1, Guid.NewGuid()),
             CancellationToken.None);
 
         var delivery = await channel.BasicGetAsync(declared.QueueName, autoAck: true);
         Assert.NotNull(delivery);
         Assert.Equal(payload, Encoding.UTF8.GetString(delivery.Body.Span));
         Assert.Equal(eventId.ToString("D"), delivery.BasicProperties.MessageId);
-        Assert.Equal("OrderConfirmed", delivery.BasicProperties.Type);
+        Assert.Equal(eventType, delivery.BasicProperties.Type);
         Assert.Equal("correlation-123", delivery.BasicProperties.CorrelationId);
         Assert.Equal("application/json", delivery.BasicProperties.ContentType);
         Assert.True(delivery.BasicProperties.Persistent);

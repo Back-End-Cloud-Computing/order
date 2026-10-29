@@ -65,6 +65,22 @@ internal sealed class OrderRepository(OrderDbContext dbContext) : IOrderReposito
             OccurredAt = orderConfirmedEvent.OccurredAt,
             NextAttemptAt = orderConfirmedEvent.OccurredAt
         });
+        if (!string.IsNullOrWhiteSpace(order.CustomerEmail))
+        {
+            var notification = new OrderCreatedNotification(
+                order.OrderCreatedEventId, order.CreatedAt, order.Id, order.Code,
+                order.CustomerId, order.CustomerEmail, null, order.Total, "BRL",
+                orderConfirmedEvent.CorrelationId);
+            dbContext.OutboxMessages.Add(new OutboxMessage
+            {
+                Id = notification.EventId,
+                EventType = "OrderCreated",
+                Payload = OrderCreatedSerializer.Serialize(notification),
+                CorrelationId = notification.CorrelationId,
+                OccurredAt = notification.OccurredAt,
+                NextAttemptAt = notification.OccurredAt
+            });
+        }
         var request = await dbContext.IdempotencyRequests
             .SingleAsync(value => value.Key == idempotencyKey, cancellationToken);
         request.Status = IdempotencyStatus.Completed;

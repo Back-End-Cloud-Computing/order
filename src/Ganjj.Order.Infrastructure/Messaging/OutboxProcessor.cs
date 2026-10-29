@@ -33,7 +33,7 @@ internal sealed class OutboxProcessor(
                 if (!ownsLease)
                 {
                     logger.LogWarning(
-                        "OrderConfirmed event {EventId} was reclaimed by another replica before publishing.",
+                        "Outbox event {EventId} was reclaimed by another replica before publishing.",
                         message.Id);
                     continue;
                 }
@@ -55,7 +55,7 @@ internal sealed class OutboxProcessor(
                     CancellationToken.None);
                 logger.LogWarning(
                     exception,
-                    "OrderConfirmed event {EventId} could not be published on attempt {AttemptCount}.",
+                    "Outbox event {EventId} could not be published on attempt {AttemptCount}.",
                     message.Id,
                     message.AttemptCount);
             }
