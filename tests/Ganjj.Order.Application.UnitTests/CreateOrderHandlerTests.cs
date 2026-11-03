@@ -82,6 +82,22 @@ public sealed class CreateOrderHandlerTests
     }
 
     [Fact]
+    public async Task Handle_WhenCartHasAppliedCoupon_ShouldPublishCouponCode()
+    {
+        var repository = new FakeOrderRepository();
+        var cart = new CartSnapshot(
+            [new CartItemSnapshot("sku-12", "Product sku-12", null, null, 2, 100m, 90m)],
+            "BEMVINDO10");
+        var handler = Handler(repository, new FakeStockClient(), cart);
+
+        var result = await handler.HandleAsync(Command(), CancellationToken.None);
+
+        Assert.Equal(180m, result.Total);
+        var integrationEvent = Assert.IsType<OrderConfirmedEvent>(repository.SavedOrderConfirmedEvent);
+        Assert.Equal("BEMVINDO10", integrationEvent.CouponCode);
+    }
+
+    [Fact]
     public async Task Handle_WhenSupportNotificationFails_ShouldKeepCompletedOrderAndNotCompensateStock()
     {
         var repository = new FakeOrderRepository();

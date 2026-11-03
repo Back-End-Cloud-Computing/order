@@ -7,6 +7,22 @@ namespace Ganjj.Order.Api.IntegrationTests;
 public sealed class OrderConfirmedSerializerTests
 {
     [Fact]
+    public void Serialize_WhenCouponWasApplied_ShouldIncludeCouponCode()
+    {
+        var json = OrderConfirmedSerializer.Serialize(new OrderConfirmedEvent(
+            Guid.NewGuid(),
+            new DateTimeOffset(2026, 11, 3, 12, 0, 0, TimeSpan.Zero),
+            Guid.NewGuid(),
+            "BEMVINDO10",
+            [new OrderConfirmedItem("product-abc", 2)],
+            "correlation-123"));
+
+        using var document = JsonDocument.Parse(json);
+
+        Assert.Equal("BEMVINDO10", document.RootElement.GetProperty("coupon_code").GetString());
+    }
+
+    [Fact]
     public void Serialize_ShouldMatchPromotionVersionOneContractWithoutPersonalOrPriceData()
     {
         var eventId = Guid.NewGuid();

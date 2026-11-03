@@ -48,7 +48,11 @@ semeie os cupons antes do teste:
 
 ```bash
 kubectl exec deploy/promotion -c promotion -- php artisan db:seed --force
-curl -fsS -H "Authorization: Bearer $TOKEN" "http://$ELB/api/cart?coupon=BEMVINDO10"
+curl -fsS -X PUT "http://$ELB/api/cart/coupon" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"code":"BEMVINDO10"}'
+curl -fsS -H "Authorization: Bearer $TOKEN" "http://$ELB/api/cart"
 ```
 
 Crie o pedido pelo Gateway. Troque a chave de idempotência a cada pedido novo:
@@ -112,18 +116,16 @@ kubectl port-forward service/mailpit 8025:8025
 O `port-forward` é somente uma ferramenta de inspeção. O pedido continua
 entrando pelo Ingress do Gateway.
 
-## 4. Limitação conhecida do cupom
+## 4. Verificação do cupom
 
-O Cart calcula `BEMVINDO10` quando recebe o cupom por query string, mas ainda não
-persiste uma cotação versionada e autoritativa que o Order possa consumir. Por
-isso, o evento real do Order publica `coupon_code: null`; o Promotion registra o
-resultado idempotente `no_coupon` e envia o ack sem incrementar `usage_count`.
+O Cart persiste `BEMVINDO10`, incorpora o desconto em `discounted_price` e devolve
+o cupom aplicado ao Order. Confirme que o total criado pelo Order coincide com o
+`total` do Cart e que o evento real contém `coupon_code: "BEMVINDO10"`. No
+Promotion, confira que `usage_count` sobe uma única vez mesmo após repetir a
+requisição com a mesma `Idempotency-Key`.
 
-Não apresente uma mensagem manual com cupom como se ela tivesse sido produzida
-pelo Order. Se o grupo demonstrar o incremento com uma publicação AMQP manual,
-explique que ela comprova separadamente o contrato e o consumidor do Promotion.
-A integração completa do cupom depende da decisão conjunta sobre cotação e
-consumo versionados no Cart.
+A cotação ainda não é versionada e o Order não limpa o carrinho automaticamente;
+essas limitações não devem ser apresentadas como concluídas.
 
 ## 5. Pontos técnicos para defender
 

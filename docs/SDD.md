@@ -410,8 +410,9 @@ No distributed database transaction or shared schema is introduced.
 - Publish from a SQL outbox with confirms for at-least-once delivery.
 - Persist the outbox row in the same transaction as Order and idempotency completion.
 - Claim rows with a lease so three Order replicas do not publish the same row concurrently.
-- Emit `coupon_code: null` until an authoritative Cart quote supplies a coupon
-  and consistent total. Never accept price or coupon data from the public body.
+- Copy `coupon.code` into `coupon_code` only when Cart reports
+  `coupon.applied: true`; otherwise emit `null`. Never accept price or coupon data
+  from the public body.
 
 ### Failure matrix
 

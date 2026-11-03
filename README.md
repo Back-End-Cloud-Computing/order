@@ -162,8 +162,9 @@ claims `sub`, `email`, `role` e `typ` do Authorization, além do header
 `Em implementação` - fundação, domínio, persistência, API, autenticação,
 integrações HTTP, outbox/RabbitMQ, migrations, Docker, Kubernetes e testes automatizados
 disponíveis. Os contratos atuais de leitura do Cart e estoque do Product estão
-implementados; cotação versionada, consumo seguro do carrinho e cupom ainda
-dependem de evolução conjunta dos serviços.
+implementados. O snapshot atual já recebe do Cart os preços finais com desconto
+e o cupom aplicado para publicação no `OrderConfirmed`; cotação versionada e
+limpeza segura do carrinho continuam pendentes.
 
 ### Support OrderCreated outbox
 
