@@ -191,7 +191,7 @@ The service is successful when the team can demonstrate that:
 | FR-018 | Return consistent RFC 9457-style problem responses for errors. | Should |
 | FR-019 | Upgrade Cart integration to a versioned, promotion-aware checkout quote after group approval. | Could |
 | FR-020 | After commit, send the persisted `OrderCreated` event to Support without failing the order when Support is unavailable. | Must |
-| FR-021 | After Order commit, eventually publish the accepted `OrderConfirmed` contract for idempotent consumption by Promotion; use a null coupon until Cart supplies an authoritative value. | Must |
+| FR-021 | After Order commit, eventually publish the accepted `OrderConfirmed` contract for idempotent consumption by Promotion, including the coupon that Cart reports as applied. | Must |
 
 ## 9. Non-functional requirements
 
@@ -240,8 +240,8 @@ from the client request because checkout data must be obtained from Cart.
 
 - The initial implementation uses the existing `GET /api/cart` contract and
   forwards the customer's Bearer token.
-- Cart checkout quotes, cart versioning, safe consume, and promotion composition
-  remain pending in `INTEGRATION-ISSUES.md`.
+- Cart versioning and safe consume remain pending in `INTEGRATION-ISSUES.md`;
+  Cart already composes promotion and coupon discounts for the current snapshot.
 - Product will provide idempotent stock decrement and restore operations, or the
   team will accept the documented limitations of the original per-item Saga.
 - JWT claim names and signing configuration will be agreed across all services.
@@ -252,7 +252,7 @@ from the client request because checkout data must be obtained from Cart.
 
 | Risk | Impact | Mitigation |
 | --- | --- | --- |
-| Current Cart snapshot is not versioned and coupon is query-only | Order cannot safely consume a non-null coupon or prove the cart did not change | Publish a null-coupon event now; keep non-null coupon out until Cart provides a persisted checkout quote |
+| Current Cart snapshot and persisted coupon are not versioned | Order cannot prove the cart stayed unchanged after its read | Keep checkout synchronous, do not clear the Cart blindly, and retain versioned quotes as the target design |
 | Current Cart has no safe consume/version operation | Clearing may remove newly added products | Do not auto-clear in the interim implementation |
 | Product operations are not idempotent | Retries may duplicate stock changes | Require operation IDs and disable blind POST retries |
 | Compensation fails | Stock and order state diverge | Structured alert, persisted recovery record, manual/retry procedure |
@@ -266,7 +266,8 @@ The PRD is accepted when the group agrees that:
 
 - Order receives no product prices from the external client.
 - Cart provides the server-to-server item/price snapshot for the interim version.
-- Promotion-aware quote and safe Cart consumption remain explicit group issues.
+- Cart supplies promotion- and coupon-aware final item prices; versioning and safe
+  Cart consumption remain explicit group issues.
 - Product owns stock and exposes compensatable operations.
 - SQL Server belongs only to Order.
 - Public order behaviors and authorization rules are correct.

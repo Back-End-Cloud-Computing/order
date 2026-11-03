@@ -1,6 +1,8 @@
 namespace Ganjj.Order.Application.Checkout;
 
-public sealed record CartSnapshot(IReadOnlyList<CartItemSnapshot> Items);
+public sealed record CartSnapshot(
+    IReadOnlyList<CartItemSnapshot> Items,
+    string? CouponCode = null);
 
 public sealed record CartItemSnapshot(
     string ProductId,

@@ -50,14 +50,21 @@ internal sealed class CartClient(HttpClient httpClient) : ICartClient
                     throw new InvalidDependencyContractException("Cart", "the items collection is missing");
                 }
 
-                return new CartSnapshot(payload.Items.Select(item => new CartItemSnapshot(
-                    item.ProductId,
-                    item.Name,
-                    item.Color,
-                    item.ImageUrl,
-                    item.Quantity,
-                    item.Price,
-                    item.DiscountedPrice)).ToList());
+                var couponCode = payload.Coupon is { Applied: true } &&
+                                 !string.IsNullOrWhiteSpace(payload.Coupon.Code)
+                    ? payload.Coupon.Code.Trim().ToUpperInvariant()
+                    : null;
+
+                return new CartSnapshot(
+                    payload.Items.Select(item => new CartItemSnapshot(
+                        item.ProductId,
+                        item.Name,
+                        item.Color,
+                        item.ImageUrl,
+                        item.Quantity,
+                        item.Price,
+                        item.DiscountedPrice)).ToList(),
+                    couponCode);
             }
             catch (InvalidDependencyContractException)
             {
@@ -70,7 +77,13 @@ internal sealed class CartClient(HttpClient httpClient) : ICartClient
         }
     }
 
-    private sealed record CartResponse([property: JsonPropertyName("items")] List<CartItemResponse> Items);
+    private sealed record CartResponse(
+        [property: JsonPropertyName("items")] List<CartItemResponse> Items,
+        [property: JsonPropertyName("coupon")] CartCouponResponse? Coupon);
+
+    private sealed record CartCouponResponse(
+        [property: JsonPropertyName("code")] string? Code,
+        [property: JsonPropertyName("applied")] bool Applied);
 
     private sealed record CartItemResponse(
         [property: JsonPropertyName("product_id")] string ProductId,

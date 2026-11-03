@@ -29,10 +29,13 @@ public sealed class CartAndProductClientTests
                                    }
                                  ],
                                  "subtotal": 200.00,
-                                 "promotions_discount": 20.00,
-                                 "coupon_discount": 0,
+                                 "promotions_discount": 0,
+                                 "coupon_discount": 20.00,
                                  "total": 180.00,
-                                 "coupon": null,
+                                 "coupon": {
+                                   "code": "BEMVINDO10",
+                                   "applied": true
+                                 },
                                  "discounts_applied": true
                                }
                                """;
@@ -60,6 +63,45 @@ public sealed class CartAndProductClientTests
         Assert.Equal(2, item.Quantity);
         Assert.Equal(100m, item.UnitListPrice);
         Assert.Equal(90m, item.UnitFinalPrice);
+        Assert.Equal("BEMVINDO10", cart.CouponCode);
+    }
+
+    [Fact]
+    public async Task CartClient_WhenCouponIsNotApplied_ShouldNotExposeCouponCode()
+    {
+        const string payload = """
+                               {
+                                 "items": [
+                                   {
+                                     "product_id": "product-abc",
+                                     "name": "Camiseta GANJJ",
+                                     "price": 100.00,
+                                     "quantity": 2,
+                                     "discounted_price": 100.00
+                                   }
+                                 ],
+                                 "coupon": {
+                                   "code": "BEMVINDO10",
+                                   "applied": false,
+                                   "reason": "Promotion unavailable"
+                                 },
+                                 "discounts_applied": false
+                               }
+                               """;
+        var handler = new RecordingHandler(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(payload, Encoding.UTF8, "application/json")
+        });
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("http://shopping-cart:3003") };
+        var client = new CartClient(httpClient);
+
+        var cart = await client.GetCurrentAsync(
+            Guid.Parse("11111111-1111-1111-1111-111111111111"),
+            "customer-token",
+            "correlation-123",
+            CancellationToken.None);
+
+        Assert.Null(cart.CouponCode);
     }
 
     [Fact]

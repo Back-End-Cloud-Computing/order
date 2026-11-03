@@ -61,20 +61,17 @@ atuais do Product com os descontos do Promotion. A resposta possui `product_id`,
 `name`, `price`, `color`, `image_url`, `quantity` e `discounted_price`, além dos
 totais do carrinho.
 
-**Problema restante:** o Cart ainda não persiste versão nem cotação de checkout
-com expiração. O cupom é calculado somente quando recebido por query string e não
-fica associado a uma cotação que o Order possa consumir com segurança.
+**Atualização em 03/11/2026:** o Cart agora persiste o cupom aceito no Redis por
+`PUT /api/cart/coupon`. `GET /api/cart` reaplica esse cupom, distribui o desconto
+em `discounted_price` e devolve `coupon.code` com `coupon.applied: true`.
 
-**Decisão provisória do Order:** chamar `GET /api/cart`, persistir `price` como
+**Decisão aplicada no Order:** chamar `GET /api/cart`, persistir `price` como
 preço de lista e `discounted_price` como preço final e calcular
-`discounted_price * quantity`. O Order não aplicará regras de promoção e não
-consumirá cupom até existir uma cotação persistida/autoritativa.
+`discounted_price * quantity`. O Order não aplica regras de promoção; ele publica
+no `OrderConfirmed` somente o cupom que o Cart marca como aplicado.
 
-**Decisão que o grupo precisa tomar:**
-
-1. Cart passa a produzir e consumir uma cotação final versionada; ou
-2. o grupo aceita formalmente o snapshot promocional sem cupom para a
-   apresentação acadêmica.
+**Problema restante:** esse snapshot ainda não possui versão nem operação de
+consumo. A limpeza segura do carrinho continua separadamente em INT-003.
 
 **Recomendação:** Cart deve produzir a cotação final, consultando Product e
 Promotion, porque Order não deve conhecer regras de preço ou promoção.
@@ -177,13 +174,14 @@ nomes em inglês e contém `event_id`, `order_id`, `coupon_code`, itens e
 `correlation_id`. A idempotência do consumidor é por `order_id`.
 
 **Implementado:** Promotion já possui consumidor idempotente e o Order grava o
-evento no outbox na mesma transação do pedido, publicando com confirmação. Como
-o Cart ainda não entrega uma cotação autoritativa com cupom e total coerentes,
-o Order publica `coupon_code: null`, que o Promotion reconhece como no-op.
+evento no outbox na mesma transação do pedido, publicando com confirmação. O Cart
+persiste o cupom aplicado e inclui seu desconto nos preços finais; o Order copia
+`coupon.code` para `coupon_code` quando `coupon.applied` é verdadeiro. Sem cupom
+aplicado, `null` continua sendo o no-op aceito pelo Promotion.
 
-**Ainda pendente:** validar o fluxo completo no cluster compartilhado e evoluir
-o Cart antes de enviar cupom não nulo. O Order não deve aceitar cupom diretamente
-no JSON público para contornar esse bloqueio.
+**Ainda pendente:** validar no cluster compartilhado que o total do pedido coincide
+com o Cart e que o consumidor incrementa `usage_count` exatamente uma vez. O Order
+continua sem aceitar cupom diretamente no JSON público.
 
 **Responsáveis:** Rodrigo Alves (publisher/outbox) e Lucas Stopinski
 (consumer/idempotência).
@@ -192,7 +190,7 @@ no JSON público para contornar esse bloqueio.
 
 - [x] Aprovar o ADR 0006 e o contrato JWT (`sub`, `email`, `role`, `typ`).
 - [ ] Compartilhar um access token de teste sem expor chave privada.
-- [ ] Decidir quem calcula o preço final e as promoções no checkout.
+- [x] Decidir quem calcula o preço final e as promoções no checkout.
 - [ ] Decidir se o Cart terá cotação e versionamento.
 - [ ] Aprovar as operações de decremento/restauração de estoque.
 - [ ] Padronizar os tipos de IDs externos.

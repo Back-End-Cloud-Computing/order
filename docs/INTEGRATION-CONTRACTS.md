@@ -59,7 +59,7 @@ before final integration acceptance.
 ## 4. Cart checkout quote
 
 Owner: Shopping Cart (João Liz)  
-Status: Cart service implemented; checkout-quote capability not implemented
+Status: persisted-coupon snapshot implemented; versioned checkout quote not implemented
 
 The current Cart stores a display snapshot of Product price in Redis. The target
 operation must revalidate Product and Promotion data at checkout time and produce
@@ -89,15 +89,19 @@ Current successful response:
       "color": "preta",
       "image_url": null,
       "quantity": 2,
-      "discount_percentage": 20,
+      "discount_percentage": 0,
+      "promotion_price": 50.00,
       "discounted_price": 40.00
     }
   ],
   "subtotal": 100.00,
-  "promotions_discount": 20.00,
-  "coupon_discount": 0,
+  "promotions_discount": 0,
+  "coupon_discount": 20.00,
   "total": 80.00,
-  "coupon": null,
+  "coupon": {
+    "code": "BEMVINDO10",
+    "applied": true
+  },
   "discounts_applied": true
 }
 ```
@@ -106,9 +110,11 @@ For this interim version, Order stores `price` as the list-price snapshot and
 `discounted_price` as the final unit price. The unit discount is their difference,
 and Order calculates `sum(discounted_price * quantity)`. Promotion rules remain
 owned by Cart/Promotion. The access token is forwarded because the current Cart
-has no internal read endpoint. Coupon data is not considered authoritative because
-the current Cart accepts it only as an optional query parameter and does not persist
-a versioned quote for Order to consume.
+has no internal read endpoint. Cart persists an accepted coupon through
+`PUT /api/cart/coupon`, includes its proportional discount in each
+`discounted_price`, and returns the applied code in `coupon.code`. Order uses that
+code only when `coupon.applied` is `true`; the public Order request never supplies
+prices or coupons.
 
 The current Cart has no quote/version/consume operation. Order therefore does not
 automatically clear the cart after creating an order in the interim version; a
@@ -426,11 +432,10 @@ Rules:
   operationally visible instead of looping forever.
 - No customer identity, e-mail, address, price, or other personal data is sent.
 
-The current Order Cart adapter does not receive or persist a coupon code, so the
-publisher emits `coupon_code: null`. This is an accepted no-op in Promotion and
-keeps the RabbitMQ integration functional. A non-null coupon remains deferred
-until an authoritative Cart quote provides a consistent coupon and total;
-inventing or accepting it from the public Order request is forbidden.
+The Order Cart adapter reads the coupon persisted by Cart. When Cart reports
+`coupon.applied: true`, Order copies `coupon.code` into `coupon_code`; otherwise it
+publishes `null`, which remains a valid no-op in Promotion. Inventing or accepting
+the coupon from the public Order request remains forbidden.
 
 ## 10. Contract freeze checklist
 

@@ -93,7 +93,7 @@ public sealed class CreateOrderHandler(
                 orderConfirmedEventId,
                 order.CreatedAt,
                 order.Id,
-                null,
+                cart.CouponCode,
                 order.Items.Select(item => new OrderConfirmedItem(item.ProductId, item.Quantity)).ToList(),
                 correlationId);
             await repository.SaveAndCompleteAsync(
@@ -247,6 +247,11 @@ public sealed class CreateOrderHandler(
                                    string.IsNullOrWhiteSpace(item.ProductName)))
         {
             throw new InvalidDependencyContractException("Cart", "an item snapshot is malformed");
+        }
+
+        if (cart.CouponCode is { Length: > 32 })
+        {
+            throw new InvalidDependencyContractException("Cart", "the applied coupon code is malformed");
         }
     }
 
