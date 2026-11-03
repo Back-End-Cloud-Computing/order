@@ -144,19 +144,26 @@ essas limitações não devem ser apresentadas como concluídas.
 
 ## 6. Evidências já disponíveis
 
+- Em 03/11/2026, o checkout completo foi validado no Minikube pelo Ingress
+  `api.ganjj.local`, com Authorization, Gateway, Cart, Product, Order, Promotion,
+  RabbitMQ, Support e Mailpit reais. O Cart e o Order fecharam em `180.00`, a
+  repetição retornou o mesmo pedido, o estoque caiu uma vez, o cupom foi
+  consumido uma vez e houve um único e-mail. Evidência:
+  `docs/evidence/2026-11-03-order-coupon-e2e-minikube.md`.
 - O fluxo Authorization + Gateway + Order + SQL Server + Support + Mailpit foi
   validado em 25/10/2026.
 - O fluxo Order + SQL Server + RabbitMQ + Support + Mailpit, com o fallback HTTP
   indisponível, foi validado em 29/10/2026.
-- Publisher e consumer do `OrderConfirmed` possuem testes com RabbitMQ e bancos
-  reais separadamente. A execução conjunta no novo cluster EKS ainda precisa ser
-  registrada.
+- Publisher e consumer do `OrderConfirmed` foram executados juntos no Minikube,
+  com RabbitMQ e bancos reais. A evidência não substitui uma eventual execução
+  operacional no cluster EKS compartilhado.
 
 Referências:
 
 - `support/docs/evidence/2026-10-25/order-support.json`;
 - `support/docs/evidence/2026-10-28/order-created.json`;
 - `promotion/docs/evidencias/eks-2026-10-27.md`.
+- `docs/evidence/2026-11-03-order-coupon-e2e-minikube.md`.
 
 ## 7. Desenvolvimento local e observabilidade extra
 

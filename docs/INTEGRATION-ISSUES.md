@@ -1,7 +1,7 @@
 # Pendências de integração entre os microsserviços GANJJ
 
 Status: Em discussão pelo grupo  
-Última atualização: 2026-10-28
+Última atualização: 2026-11-03
 Idioma: Português (PT-BR)
 
 ## 1. Objetivo
@@ -24,7 +24,7 @@ resolvida.
 | INT-006 | Autenticação interna | Gateway e serviços | Pendente | Não |
 | INT-007 | Convenção de nomes e rotas | Todos os serviços | Parcialmente decidido | Não |
 | INT-008 | Microsserviço de suporte | Eduardo / Order | Resolvido e comprovado via RabbitMQ | Não |
-| PROMO-001 | Evento de pedido confirmado | Order e Promotion | Código nos dois serviços; E2E compartilhado pendente | Sim para validação final |
+| PROMO-001 | Evento de pedido confirmado | Order e Promotion | Resolvido e comprovado no Kubernetes local | Não |
 
 ## 3. Pendências detalhadas
 
@@ -179,9 +179,16 @@ persiste o cupom aplicado e inclui seu desconto nos preços finais; o Order copi
 `coupon.code` para `coupon_code` quando `coupon.applied` é verdadeiro. Sem cupom
 aplicado, `null` continua sendo o no-op aceito pelo Promotion.
 
-**Ainda pendente:** validar no cluster compartilhado que o total do pedido coincide
-com o Cart e que o consumidor incrementa `usage_count` exatamente uma vez. O Order
-continua sem aceitar cupom diretamente no JSON público.
+**Validado em 03/11/2026:** o checkout entrou pelo Ingress do Gateway no
+Minikube, o Cart e o Order fecharam em `180.00` e o Promotion consumiu
+`BEMVINDO10` exatamente uma vez. A repetição da mesma `Idempotency-Key` devolveu
+o mesmo pedido, não reduziu novamente o estoque e não incrementou novamente o
+cupom. Filas e DLQs terminaram zeradas. Evidência:
+`docs/evidence/2026-11-03-order-coupon-e2e-minikube.md`.
+
+O Order continua sem aceitar cupom diretamente no JSON público. Uma eventual
+execução no ambiente EKS compartilhado é operacional e não altera o contrato já
+comprovado localmente.
 
 **Responsáveis:** Rodrigo Alves (publisher/outbox) e Lucas Stopinski
 (consumer/idempotência).
@@ -200,4 +207,4 @@ continua sem aceitar cupom diretamente no JSON público.
 - [x] Validar Order -> RabbitMQ -> Support -> Mailpit com deduplicação.
 - [x] Fechar o contrato RabbitMQ `OrderConfirmed` com o Promotion.
 - [x] Implementar e testar publisher/outbox e consumer idempotente separadamente.
-- [ ] Validar Order -> RabbitMQ -> Promotion no cluster compartilhado.
+- [x] Validar Order -> RabbitMQ -> Promotion no Kubernetes local.
