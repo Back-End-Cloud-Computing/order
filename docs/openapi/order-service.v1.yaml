@@ -1,12 +1,12 @@
 openapi: 3.1.0
 info:
   title: GANJJ Order Service API
-  version: 1.0.0-draft
+  version: 1.0.0
   description: >-
-    Proposed public contract for the independently deployed GANJJ order
+    Public contract implemented by the independently deployed GANJJ order
     microservice. Prices and items are obtained server-to-server from Shopping
-    Cart; external clients never submit prices. The initial integration uses the
-    current Cart item snapshot, while versioned checkout quotes remain pending.
+    Cart; external clients never submit prices. The integration uses the current
+    Cart item snapshot, while versioned checkout quotes remain pending.
 servers:
   - url: http://localhost:3004
     description: Direct local container access
@@ -24,7 +24,6 @@ paths:
       operationId: criarPedido
       security:
         - bearerAuth: []
-        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/CorrelationId'
@@ -36,7 +35,7 @@ paths:
               $ref: '#/components/schemas/CriarPedidoRequest'
             example:
               endereco_entrega:
-                logradouro: Rua das Flores
+                rua: Rua das Flores
                 numero: '123'
                 complemento: Apto 42
                 bairro: Centro
@@ -68,12 +67,16 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-        '422':
-          description: Cotação ou regra de negócio inválida
+        '404':
+          description: Produto referenciado pelo carrinho não encontrado
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+        '500':
+          $ref: '#/components/responses/InternalServerProblem'
+        '502':
+          $ref: '#/components/responses/BadGatewayProblem'
         '503':
           $ref: '#/components/responses/DependencyUnavailableProblem'
 
@@ -84,7 +87,6 @@ paths:
       operationId: listarMeusPedidos
       security:
         - bearerAuth: []
-        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/CorrelationId'
       responses:
@@ -95,7 +97,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/PedidoResumo'
+                  $ref: '#/components/schemas/Pedido'
         '401':
           $ref: '#/components/responses/UnauthorizedProblem'
 
@@ -106,7 +108,6 @@ paths:
       operationId: obterPedido
       security:
         - bearerAuth: []
-        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/OrderId'
         - $ref: '#/components/parameters/CorrelationId'
@@ -116,7 +117,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PedidoDetalhado'
+                $ref: '#/components/schemas/Pedido'
         '401':
           $ref: '#/components/responses/UnauthorizedProblem'
         '403':
@@ -132,7 +133,6 @@ paths:
       operationId: listarTodosPedidos
       security:
         - bearerAuth: []
-        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/CorrelationId'
       responses:
@@ -143,7 +143,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/PedidoAdminResumo'
+                  $ref: '#/components/schemas/Pedido'
         '401':
           $ref: '#/components/responses/UnauthorizedProblem'
         '403':
@@ -159,7 +159,6 @@ paths:
       operationId: atualizarPassoPedido
       security:
         - bearerAuth: []
-        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/OrderId'
         - $ref: '#/components/parameters/CorrelationId'
@@ -171,13 +170,14 @@ paths:
               $ref: '#/components/schemas/AtualizarPassoRequest'
             example:
               passo: 3
+              numero_rastreio: BR123456789
       responses:
         '200':
           description: Passo atualizado
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PassoAtualizado'
+                $ref: '#/components/schemas/Pedido'
         '400':
           $ref: '#/components/responses/ValidationProblem'
         '401':
@@ -236,10 +236,6 @@ paths:
                 $ref: '#/components/schemas/HealthResponse'
         '503':
           description: Serviço não está pronto
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HealthResponse'
 
   /instance:
     get:
@@ -261,10 +257,6 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
-    cookieAuth:
-      type: apiKey
-      in: cookie
-      name: accessToken
 
   parameters:
     IdempotencyKey:
@@ -329,6 +321,18 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/ProblemDetails'
+    BadGatewayProblem:
+      description: Resposta de uma dependência não corresponde ao contrato esperado
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    InternalServerProblem:
+      description: Falha inesperada ou falha ao compensar o checkout
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
 
   schemas:
     CriarPedidoRequest:
@@ -342,9 +346,9 @@ components:
     EnderecoEntrega:
       type: object
       additionalProperties: false
-      required: [logradouro, numero, bairro, cidade, estado, cep, pais]
+      required: [rua, numero, bairro, cidade, estado, cep, pais]
       properties:
-        logradouro:
+        rua:
           type: string
           minLength: 1
           maxLength: 200
@@ -365,20 +369,20 @@ components:
           maxLength: 100
         estado:
           type: string
-          minLength: 2
+          minLength: 1
           maxLength: 50
         cep:
           type: string
-          minLength: 3
+          minLength: 1
           maxLength: 20
         pais:
           type: string
-          minLength: 2
+          minLength: 1
           maxLength: 2
 
     PedidoCriado:
       type: object
-      required: [id, codigo, status, passo_atual, total, moeda, criado_em]
+      required: [id, codigo, status, passo, total, criado_em]
       properties:
         id:
           type: string
@@ -388,63 +392,68 @@ components:
           example: '#GNJ-20260821-0001'
         status:
           $ref: '#/components/schemas/StatusPedido'
-        passo_atual:
+        passo:
           type: integer
           minimum: 0
           maximum: 5
         total:
           type: number
           multipleOf: 0.01
-        moeda:
-          type: string
-          const: BRL
         criado_em:
           type: string
           format: date-time
 
-    PedidoResumo:
-      allOf:
-        - $ref: '#/components/schemas/PedidoCriado'
-        - type: object
-          required: [endereco_entrega, itens]
-          properties:
-            endereco_entrega:
-              $ref: '#/components/schemas/EnderecoEntrega'
-            numero_rastreio:
-              type: [string, 'null']
-            itens:
-              type: array
-              items:
-                $ref: '#/components/schemas/ItemPedido'
-
-    PedidoAdminResumo:
-      allOf:
-        - $ref: '#/components/schemas/PedidoResumo'
-        - type: object
-          required: [cliente_id]
-          properties:
-            cliente_id:
-              type: string
-              format: uuid
-            cliente_nome:
-              type: [string, 'null']
-            cliente_email:
-              type: [string, 'null']
-              format: email
-
-    PedidoDetalhado:
-      allOf:
-        - $ref: '#/components/schemas/PedidoAdminResumo'
-        - type: object
-          properties:
-            quote_id:
-              type: [string, 'null']
-              format: uuid
-              description: Present only after Cart implements checkout quotes.
-            cart_version:
-              type: [integer, 'null']
-              format: int64
-              description: Present only after Cart implements versioning.
+    Pedido:
+      type: object
+      required:
+        - id
+        - codigo
+        - cliente_id
+        - status
+        - passo
+        - total
+        - endereco_entrega
+        - itens
+        - criado_em
+        - atualizado_em
+      properties:
+        id:
+          type: string
+          format: uuid
+        codigo:
+          type: string
+          example: '#GNJ-20260821-0001'
+        cliente_id:
+          type: string
+          format: uuid
+        cliente_nome:
+          type: [string, 'null']
+        cliente_email:
+          type: [string, 'null']
+          format: email
+        status:
+          $ref: '#/components/schemas/StatusPedido'
+        passo:
+          type: integer
+          minimum: 0
+          maximum: 5
+        numero_rastreio:
+          type: [string, 'null']
+        total:
+          type: number
+          multipleOf: 0.01
+        endereco_entrega:
+          $ref: '#/components/schemas/EnderecoEntrega'
+        itens:
+          type: array
+          items:
+            $ref: '#/components/schemas/ItemPedido'
+        criado_em:
+          type: string
+          format: date-time
+        atualizado_em:
+          type: string
+          format: date-time
 
     ItemPedido:
       type: object
@@ -452,10 +461,8 @@ components:
         - produto_id
         - nome
         - quantidade
-        - preco_lista_unitario
-        - desconto_unitario
-        - preco_final_unitario
-        - total_linha
+        - preco_unitario
+        - subtotal
       properties:
         produto_id:
           type: string
@@ -471,25 +478,14 @@ components:
         quantidade:
           type: integer
           minimum: 1
-        preco_lista_unitario:
-          type: number
-          multipleOf: 0.01
-        desconto_unitario:
+        preco_unitario:
           type: number
           minimum: 0
           multipleOf: 0.01
-        preco_final_unitario:
+        subtotal:
           type: number
           minimum: 0
           multipleOf: 0.01
-        total_linha:
-          type: number
-          minimum: 0
-          multipleOf: 0.01
-        promocao_id:
-          type: [string, 'null']
-        promocao_nome:
-          type: [string, 'null']
 
     AtualizarPassoRequest:
       type: object
@@ -500,27 +496,12 @@ components:
           type: integer
           minimum: 0
           maximum: 5
-
-    PassoAtualizado:
-      type: object
-      required: [id, passo_atual, status, atualizado_em]
-      properties:
-        id:
-          type: string
-          format: uuid
-        passo_atual:
-          type: integer
-          minimum: 0
-          maximum: 5
-        status:
-          $ref: '#/components/schemas/StatusPedido'
-        atualizado_em:
-          type: string
-          format: date-time
+        numero_rastreio:
+          type: [string, 'null']
 
     StatusPedido:
       type: string
-      enum: [pending, shipping, completed, cancelled, failed]
+      enum: [Pending, Shipping, Completed, Cancelled, Failed]
 
     HealthResponse:
       type: object
@@ -556,6 +537,8 @@ components:
         instance:
           type: string
         traceId:
+          type: string
+        code:
           type: string
       additionalProperties: true
 
