@@ -11,7 +11,7 @@ reserva estoque no serviço de produtos e mantém um snapshot imutável dos iten
 - [Plano de TDD](docs/TDD-PLAN.md) - ciclos Red-Green-Refactor e estratégia de testes.
 - [Contratos de integração](docs/INTEGRATION-CONTRACTS.md) - dependências entre serviços.
 - [Pendências de integração do grupo](docs/INTEGRATION-ISSUES.md) - decisões em aberto, em português (PT-BR).
-- [Contrato OpenAPI](docs/openapi/order-service.v1.yaml) - API pública proposta.
+- [Contrato OpenAPI](docs/openapi/order-service.v1.yaml) - API pública implementada.
 - [Plano de entrega](docs/DELIVERY-PLAN.md) - backlog e ordem de implementação.
 - [Roteiro da apresentação](docs/PRESENTATION-RUNBOOK.md) - demonstração de
   Kubernetes e observabilidade.
